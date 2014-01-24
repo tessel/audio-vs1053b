@@ -101,19 +101,19 @@ spi.setClockSpeed(4000000); //Set SPI bus speed to 4MHz (16MHz / 4 = 4MHz)
 var MP3Clock = Mp3ReadRegister(SCI_CLOCKF);
 console.log("SCI_ClockF = 0x", MP3Clock.toString(16));
 
-console.log('chunking.');
+console.log('chunking', hair.length, 'bytes.');
 
 var len = hair.length;
-var chunks = [], clen = 2048;
-for (var p = 0; p < len; p = p + clen) {
-  chunks.push(hair.substr(p, clen));
+var chunks = [], clen = 32;
+for (var p = 0, i = 0; p < len; p = p + clen) {
+  chunks[i++] = hair.substr(p, clen);
   // console.log(p);
   // tm.pin_write_digital(MP3_DCS, tm.PIN_LOW);
   // spi.transferSync(hair.substr(p, 32));
   // tm.pin_write_digital(MP3_DCS, tm.PIN_HIGH);
 }
 
-console.log('done chunking.');
+console.log('done chunking:', chunks.length, 'chunks.');
 
 MP3_DCS.low();
 var i = 0, len = chunks.length;
