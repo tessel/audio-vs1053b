@@ -177,8 +177,14 @@ function connect (port)
 
     console.log('chunking', hair.length, 'bytes.');
 
+    var streaming = false;
+
+    if (streaming) {
+      writeSciRegister16(SCI_MODE, 0x4800 | (1 << 6));
+    }
+
     var len = hair.length;
-    var chunks = [], clen = 32;
+    var chunks = [], clen = streaming ? 512 : 32;
     var p = 0, i = 0;
     while (p < len) {
       chunks[i] = hair.substr(p, clen);
