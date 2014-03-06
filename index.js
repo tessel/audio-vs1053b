@@ -35,7 +35,7 @@ function connect (port)
 
   function SPItransfer (byte)
   {
-    return spi.transferSync([byte])[0];
+    return spi.transferSync(new Buffer([byte]))[0];
   }
 
   //Read the 16-bit value of a VS10xx register
@@ -57,6 +57,7 @@ function connect (port)
 
     var resultvalue = response1 << 8;
     resultvalue = resultvalue + response2;
+
     return resultvalue;
   }
 
@@ -173,7 +174,7 @@ function connect (port)
   function playSample ()
   {
     console.log('Loading mp3');
-    var hair = fs.readFileSync('/app/twinfalls.mp3');
+    var hair = fs.readFileSync('/app/sample.mp3');
 
     console.log('chunking', hair.length, 'bytes.');
 
@@ -187,7 +188,7 @@ function connect (port)
     var chunks = [], clen = streaming ? 512 : 32;
     var p = 0, i = 0;
     while (p < len) {
-      chunks[i] = hair.substr(p, clen);
+      chunks[i] = hair.slice(p, p + clen);
       i = i + 1;
       p = p + clen;
       // console.log(p);
@@ -202,7 +203,7 @@ function connect (port)
     var i = 0, len = chunks.length;
     while (i < len) {
       // while (!MP3_DREQ.read()) { }
-      spi.send(chunks[i]);
+      spi.sendSync(chunks[i]);
       i = i + 1;
     }
     console.log('done playing.');
