@@ -3,6 +3,7 @@
 var fs = require('fs');
 var events = require('events');
 var util = require('util');
+var async = require('async');
 
 // VS10xx SCI Registers
 var SCI_MODE = 0x00
@@ -317,12 +318,16 @@ Audio.prototype.play = function(buff, callback) {
   console.log('done chunking:', chunks.length, 'chunks.');
 
   this.MP3_DCS.low();
-  var i = 0, len = chunks.length;
-  while (i < len) {
-    // while (!MP3_DREQ.read()) { }
-    this.spi.sendSync(chunks[i]);
-    i = i + 1;
-  }
+  async.eachSeries(
+    chunks, 
+    function playChunk(chunk, callback) {
+      this.spi.transfer(chunk, callback);
+    }.bind(this),
+    function playComplete(err) {
+      callback && callback(err);
+    }
+  );
+
   console.log('done playing.');
 }
 exports.use = use;
