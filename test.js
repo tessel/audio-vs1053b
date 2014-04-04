@@ -13,3 +13,5 @@ audio.on('ready', function() {
 audio.on('error', function(err) {
   console.log("Failed to connect", err);
 })
+
+setInterval(function(){}, 20000);

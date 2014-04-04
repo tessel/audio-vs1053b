@@ -259,9 +259,16 @@ Audio.prototype.setDefaultIO = function(callback) {
   });
 }
 
-Audio.prototype.setVolume = function(leftChannel, rightChannel) {
+Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels) {
+  if (rightChannelDecibels === undefined) {
+    rightChannelDecibels = leftChannelDecibels;
+  }
+
+  // The units are in half decibels
+  leftChannelDecibels = leftChannelDecibels/0.5;
+  rightChannelDecibels = rightChannelDecibels/0.5
   // Set VS10xx Volume Register
-  this._writeSciRegister(SCI_VOL, leftChannel, rightChannel, callback);
+  this._writeSciRegister(SCI_VOL, leftChannelDecibels, rightChannelDecibels, callback);
 }
 
 Audio.prototype.setInput = function(input, callback) {
@@ -307,7 +314,7 @@ Audio.prototype.play = function(buff, callback) {
 
 
   var len = buff.length;
-  var chunks = [], clen =  32;
+  var chunks = [], clen =  64;
   var p = 0, i = 0;
   while (p < len) {
     chunks[i] = buff.slice(p, p + clen);
@@ -321,13 +328,13 @@ Audio.prototype.play = function(buff, callback) {
   async.eachSeries(
     chunks, 
     function playChunk(chunk, callback) {
+      while(!this.MP3_DREQ.read())
       this.spi.transfer(chunk, callback);
     }.bind(this),
     function playComplete(err) {
+      this.MP3_DCS.high();
       callback && callback(err);
-    }
+    }.bind(this)
   );
-
-  console.log('done playing.');
 }
 exports.use = use;
