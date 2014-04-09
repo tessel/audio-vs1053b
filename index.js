@@ -4,6 +4,7 @@ var fs = require('fs');
 var events = require('events');
 var util = require('util');
 var async = require('async');
+var hw = process.binding('hw')
 
 // VS10xx SCI Registers
 var SCI_MODE = 0x00
@@ -41,9 +42,9 @@ function Audio(hardware, callback) {
   });
 
   // Set our register select pins
-  this.MP3_XCS = hardware.gpio(1).output().high() //Control Chip Select Pin (for accessing SPI Control/Status registers)
-  this.MP3_DCS = hardware.gpio(2).output().high() //Data Chip Select / BSYNC Pin
-  this.MP3_DREQ = hardware.gpio(3).input() //Data Request Pin: Player asks for more data
+  this.MP3_XCS = hardware.gpio(1).setOutput(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
+  this.MP3_DCS = hardware.gpio(2).setOutput(true); //Data Chip Select / BSYNC Pin
+  this.MP3_DREQ = hardware.gpio(3).setInput() //Data Request Pin: Player asks for more data
 
   this.input = "";
   this.output = "";
@@ -259,7 +260,7 @@ Audio.prototype.setDefaultIO = function(callback) {
   });
 }
 
-Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels) {
+Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, callback) {
   if (rightChannelDecibels === undefined) {
     rightChannelDecibels = leftChannelDecibels;
   }
@@ -311,6 +312,7 @@ Audio.prototype.play = function(buff, callback) {
   console.log('Loading mp3');
 
   console.log('chunking', buff.length, 'bytes.');
+  // hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
 
 
   var len = buff.length;
@@ -322,13 +324,13 @@ Audio.prototype.play = function(buff, callback) {
     p = p + clen;
   }
 
-  console.log('done chunking:', chunks.length, 'chunks.');
+  console.log('done chunking:', chunks.length, 'chunks. Playing song...');
 
   this.MP3_DCS.low();
   async.eachSeries(
     chunks, 
     function playChunk(chunk, callback) {
-      while(!this.MP3_DREQ.read())
+      while(!this.MP3_DREQ.read()){};
       this.spi.transfer(chunk, callback);
     }.bind(this),
     function playComplete(err) {
