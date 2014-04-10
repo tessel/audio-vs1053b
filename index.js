@@ -312,31 +312,31 @@ Audio.prototype.play = function(buff, callback) {
   console.log('Loading mp3');
 
   console.log('chunking', buff.length, 'bytes.');
-  // hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
+  hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
 
 
-  var len = buff.length;
-  var chunks = [], clen =  64;
-  var p = 0, i = 0;
-  while (p < len) {
-    chunks[i] = buff.slice(p, p + clen);
-    i = i + 1;
-    p = p + clen;
-  }
+  // var len = buff.length;
+  // var chunks = [], clen =  64;
+  // var p = 0, i = 0;
+  // while (p < len) {
+  //   chunks[i] = buff.slice(p, p + clen);
+  //   i = i + 1;
+  //   p = p + clen;
+  // }
 
-  console.log('done chunking:', chunks.length, 'chunks. Playing song...');
+  // console.log('done chunking:', chunks.length, 'chunks. Playing song...');
 
-  this.MP3_DCS.low();
-  async.eachSeries(
-    chunks, 
-    function playChunk(chunk, callback) {
-      while(!this.MP3_DREQ.read()){};
-      this.spi.transfer(chunk, callback);
-    }.bind(this),
-    function playComplete(err) {
-      this.MP3_DCS.high();
-      callback && callback(err);
-    }.bind(this)
-  );
+  // this.MP3_DCS.low();
+  // async.eachSeries(
+  //   chunks, 
+  //   function playChunk(chunk, callback) {
+  //     while(!this.MP3_DREQ.read()){};
+  //     this.spi.transfer(chunk, callback);
+  //   }.bind(this),
+  //   function playComplete(err) {
+  //     this.MP3_DCS.high();
+  //     callback && callback(err);
+  //   }.bind(this)
+  // );
 }
 exports.use = use;
