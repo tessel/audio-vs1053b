@@ -1,37 +1,143 @@
-#Audio
-Driver for the audio-vs1053b Tessel audio module ([VS1053b](http://www.vlsi.fi/fileadmin/datasheets/vlsi/vs1053.pdf)).
-
-##Really Important Information
-e.g. "this isn't ready to go yet" or "here is some special way you have to use this or it won't work"
-Hopefully we don't need this section by the time we release things to the public
+#Audio Module
 
 ##Installation
-```sh
-npm install audio-vs1053b
-```
+
+```npm install audio-vs1053b```
+
 ##Example
-```js
+1. Writing mic data to a file (w/out streams)
+```.js
 var tessel = require('tessel');
-
-var audio = require('audio-vs1053b').connect(tessel.port("A"));
-
-audio.enableHeadphones();
-// audio.enableLineOut();
-audio.playSample();
-
-// audio.record();
+var fs = require('fs');
+var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
+  
+  // Start recording data for a second into a file
+  audio.setInput('microphone', function(err) {
+    
+    // Start the recording
+    audio.startRecording(function(err) {
+      // In one second
+      setTimeout(function() {
+        // Stop recording
+        audio.stopRecording(function(err, oggBuffer) {
+          // Write the buffer to a file
+          fs.writeFile("micdata", oggBuffer, function(err) {
+            console.log("Wrote to a file");
+          });
+        })
+      }, 1000);
+    });
+  });
+});
 ```
 
-##Methods
+2. Writing line-in to a file (w/ streams)
+```.js
+var tessel = require('tessel');
+var fs = require('fs');
+var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
+  
+  // Start recording data for a second into a file
+  audio.setInput('microphone', function(err) {
+    // Open a stream to a file
+    var file = fs.createWriteStream('lineInData.ogg');
+    // Create a readable stream of incoming data
+    var soundData = audio.createReadStream();
+    // Pipe data to the file
+    soundData.pipe(file);
+  
+    // Enable sound input
+    audio.startRecording();
+  });
+});
 
-*  **`audio`.enableHeadphones()**
+```
+3. Output audio on the headphone Jack
+```.js
+var tessel = require('tessel');
+var fs = require('fs');
+var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
+  
+  // Start recording data for a second into a file
+  audio.setOutput('headphone', function(err) {
+    // Open a file
+    var audioFile = fs.readFileSync('Oops... I did it again.mp3');
+    // Play the file
+    audio.play(audioFile);
+  });
+});
 
-*  **`audio`.playSample()**
+```
 
-*  **`audio`.enableLineOut()**
+##API
 
-*  **`audio`.record()**
+###Commands
 
-## License
+```.js
+// Set the output volume. Level is a Number from 0.0 to 1.0
+audio.setVolume( level, function(err) {...} );
 
-MIT
+// Set the input to either 'lineIn' or 'microphone'. Defaults to 'lineIn'.
+audio.setInput( input, function(err) {...} );
+
+// Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.
+audio.setOutput(output, function(err) {...} );
+
+// Start recording sound from the input.
+audio.startRecording( function(err) {...} );
+
+// Stop recording sound and return an OGG-encoded buffer
+audio.stopRecording( function(err, oggBuff) {...} );
+
+// Play a buffer
+audio.play( audioBuff, function(err) {...} );
+
+// Pause the buffer
+audio.pause( function(err) {...} );
+
+// Stop playing and flush the buffer
+audio.stop( function(err) {...} );
+
+// Returns a stream that a buffer can be piped into to play audio
+audio.createWriteableStream();
+
+// Returns a readable stream of mic data
+audio.createReadableStream()
+
+```
+
+###Events
+
+```.js
+
+// The audio module is ready to use 
+audio.on( 'ready', function() {...} );
+
+// The audio module had an error on connection
+audio.on( 'error', function(err) {...} );
+
+// Volume was set
+audio.on( 'volume', function(volume) {...} );
+
+// The input mode was set
+audio.on('input', function(input) {...} );
+
+// The output mode was set
+audio.on('output', function(output) {...} );
+
+// Started recording from the input
+audio.on('startRecording', function() {...} );
+
+// Stopped recording on the input
+audio.on('stopRecording', function() {...} );
+
+// A buffer is beginning to be played
+audio.on('play', function() {...} );
+
+// The buffer was paused
+audio.on('pause', function() {...} );
+
+// The buffer was stopped
+audio.on('stop', function() {...} );
+
+```
