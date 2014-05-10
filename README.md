@@ -1,132 +1,143 @@
-# For the module code, see the branches on this repository:
-
-(these are soon to be separate repositories)
-
-* [master-accel-mma84](https://github.com/tessel/modules/tree/master-accel-mma84)
-* [master-ambient-attx4](https://github.com/tessel/modules/tree/master-ambient-attx4)
-* [master-audio-vs1053b](https://github.com/tessel/modules/tree/master-audio-vs1053b)
-* [master-ble-ble113](https://github.com/tessel/modules/tree/master-ble-ble113)
-* [master-camera-vc0706](https://github.com/tessel/modules/tree/master-camera-vc0706)
-* [master-climate-si7005](https://github.com/tessel/modules/tree/master-climate-si7005)
-* [master-gprs-sim900](https://github.com/tessel/modules/tree/master-gprs-sim900)
-* [master-gps-a2235h](https://github.com/tessel/modules/tree/master-gps-a2235h)
-* [master-ir-attx4](https://github.com/tessel/modules/tree/master-ir-attx4)
-* [master-relay-mono](https://github.com/tessel/modules/tree/master-relay-mono)
-* [master-rfid-pn532](https://github.com/tessel/modules/tree/master-rfid-pn532)
-* [master-servo-pca9685](https://github.com/tessel/modules/tree/master-servo-pca9685)
-
-#Standards for module folders
-
-##Files
-
-Main folder:
-
-* Readme.md
-* index.js contains module firmware
-* package.json
-* examples folder
-
-examples folder:
-
-* \<module name\>.js (not the module package, but e.g. "accelerometer" or "ble") contains a full, commented demo of the basic functionalities available.
-* other examples if you want, with appropriate names
-
-##Index Code Template
-```js
-var tessel = require('tessel');
-
-// no global state! global variables/functions
-// are fine as long as you can have more than one
-// instance e.g. two accelerometers on two different ports
-
-// private functions should take in a i2c or spi or uart etc.
-// variable, basically any state they play with
-function writeRegister (spi, next) {
-    spi.transfer([somebytes], next);
-}
-
-function Accelerometer (port) {
-    // create a private spi/i2c/uart instance
-    this.spi = new port.SPI()
-}
-
-Accelerometer.prototype.somemethod = function () { }
-
-Accelerometer.prototype.somemethod = function () { }
-
-Accelerometer.prototype.somemethod = function () { }
-
-// public function
-function use () {
-    return new Accelerometer
-}
-
-// expose your classes and API all at the bottom
-exports.Accelerometer = Accelerometer
-exports.use = use
-```
-
-##Readme template:
-
-#Module Title \<module logo\>
-Very brief description, e.g. "Driver for the accel-mma84 Tessel accelerometer module (\<key chip\>)."
-
-##Really Important Information
-e.g. "this isn't ready to go yet" or "here is some special way you have to use this or it won't work"
-Hopefully we don't need this section by the time we release things to the public
+#Audio Module
 
 ##Installation
-```sh
-npm install relay-im48dgr
-```
+
+```npm install audio-vs1053b```
+
 ##Example
-```js
-exactly the contents of the examples/<module name>.js but the importation line should refer to the node module
+1. Writing mic data to a file (w/out streams)
+```.js
+var tessel = require('tessel');
+var fs = require('fs');
+var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
+  
+  // Start recording data for a second into a file
+  audio.setInput('microphone', function(err) {
+    
+    // Start the recording
+    audio.startRecording(function(err) {
+      // In one second
+      setTimeout(function() {
+        // Stop recording
+        audio.stopRecording(function(err, oggBuffer) {
+          // Write the buffer to a file
+          fs.writeFile("micdata", oggBuffer, function(err) {
+            console.log("Wrote to a file");
+          });
+        })
+      }, 1000);
+    });
+  });
+});
 ```
 
-##Methods
-
-*  **`relay`.initialize(portToUse)**
-Description of method
-
-*  **`relay`.checkChannel(channel)**
-Description etc
-
-*  **`relay`.turnOn(channel)**
-
-*  **`relay`.turnOff(channel)**
-
-*  **`relay`.toggle(channel)**
-
-*  **`relay`.getState(channel)**
-
-##Events
-
-* *event*
-
-##Further Examples
-
-* Audio playback (links to example for this in the "examples" folder)
-
-##Advanced
-
-* Any cool hacks e.g. wire hacks or whatever
-
-## Licensing
-This header goes at the top of all source files:
+2. Writing line-in to a file (w/ streams)
 ```.js
-// Copyright 2014 Technical Machine, Inc. See the COPYRIGHT
-// file at the top-level directory of this distribution.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
+var tessel = require('tessel');
+var fs = require('fs');
+var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
+  
+  // Start recording data for a second into a file
+  audio.setInput('microphone', function(err) {
+    // Open a stream to a file
+    var file = fs.createWriteStream('lineInData.ogg');
+    // Create a readable stream of incoming data
+    var soundData = audio.createReadStream();
+    // Pipe data to the file
+    soundData.pipe(file);
+  
+    // Enable sound input
+    audio.startRecording();
+  });
+});
+
+```
+3. Output audio on the headphone Jack
+```.js
+var tessel = require('tessel');
+var fs = require('fs');
+var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
+  
+  // Start recording data for a second into a file
+  audio.setOutput('headphone', function(err) {
+    // Open a file
+    var audioFile = fs.readFileSync('Oops... I did it again.mp3');
+    // Play the file
+    audio.play(audioFile);
+  });
+});
+
 ```
 
-And anything we're making public domain (example code files) gets this one:
+##API
+
+###Commands
+
 ```.js
-Any copyright is dedicated to the Public Domain.
-http://creativecommons.org/publicdomain/zero/1.0/
+// Set the output volume. Level is a Number from 0.0 to 1.0
+audio.setVolume( level, function(err) {...} );
+
+// Set the input to either 'lineIn' or 'microphone'. Defaults to 'lineIn'.
+audio.setInput( input, function(err) {...} );
+
+// Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.
+audio.setOutput(output, function(err) {...} );
+
+// Start recording sound from the input.
+audio.startRecording( function(err) {...} );
+
+// Stop recording sound and return an OGG-encoded buffer
+audio.stopRecording( function(err, oggBuff) {...} );
+
+// Play a buffer
+audio.play( audioBuff, function(err) {...} );
+
+// Pause the buffer
+audio.pause( function(err) {...} );
+
+// Stop playing and flush the buffer
+audio.stop( function(err) {...} );
+
+// Returns a stream that a buffer can be piped into to play audio
+audio.createWriteableStream();
+
+// Returns a readable stream of mic data
+audio.createReadableStream()
+
+```
+
+###Events
+
+```.js
+
+// The audio module is ready to use 
+audio.on( 'ready', function() {...} );
+
+// The audio module had an error on connection
+audio.on( 'error', function(err) {...} );
+
+// Volume was set
+audio.on( 'volume', function(volume) {...} );
+
+// The input mode was set
+audio.on('input', function(input) {...} );
+
+// The output mode was set
+audio.on('output', function(output) {...} );
+
+// Started recording from the input
+audio.on('startRecording', function() {...} );
+
+// Stopped recording on the input
+audio.on('stopRecording', function() {...} );
+
+// A buffer is beginning to be played
+audio.on('play', function() {...} );
+
+// The buffer was paused
+audio.on('pause', function() {...} );
+
+// The buffer was stopped
+audio.on('stop', function() {...} );
+
 ```
