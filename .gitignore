@@ -1,1 +1,10 @@
-*.mp3
+node_modules
+*.elf
+*.hex
+*.lss
+*.lst
+*.o
+*.map
+*.sym
+*.eep
+.dep
