@@ -42,9 +42,9 @@ function Audio(hardware, callback) {
   });
 
   // Set our register select pins
-  this.MP3_XCS = hardware.gpio(1).setOutput(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
-  this.MP3_DCS = hardware.gpio(2).setOutput(true); //Data Chip Select / BSYNC Pin
-  this.MP3_DREQ = hardware.gpio(3).setInput() //Data Request Pin: Player asks for more data
+  this.MP3_XCS = hardware.gpio(1).output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
+  this.MP3_DCS = hardware.gpio(2).output(true); //Data Chip Select / BSYNC Pin
+  this.MP3_DREQ = hardware.gpio(3).input() //Data Request Pin: Player asks for more data
 
   this.input = "";
   this.output = "";
@@ -312,7 +312,7 @@ Audio.prototype.play = function(buff, callback) {
   console.log('Loading mp3');
 
   console.log('chunking', buff.length, 'bytes.');
-  hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
+  console.log('ret: ', hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length));
 
 
   // var len = buff.length;
