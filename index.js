@@ -86,6 +86,28 @@ Audio.prototype.initialize = function(callback) {
       });
     }
   });
+
+  // Waits for the audio completion event which signifies that a buffer has finished streaming
+  process.on('audio_complete', function playComplete(errBool, completedStream) {
+    // Get the callback if one was saved
+    var callback = _audioCallbacks[completedStream];
+
+    // If it exists
+    if (callback) {
+      // Remove it from our datastructure
+      delete _audioCallbacks[completedStream];
+
+      var err;
+      // Generate an error message if there was an error
+      if (errBool) {
+        err = new Error("Error sending buffer over SPI");
+      }
+      // Call the callback
+      callback(err);
+
+      self.emit('finish', err);
+    }
+  });
 }
 
 Audio.prototype._failConnect = function(err, callback) {
@@ -308,35 +330,34 @@ Audio.prototype.setOutput = function(output, callback) {
   }
 }
 
+
+var _audioCallbacks = {};
+
 Audio.prototype.play = function(buff, callback) {
-  console.log('Loading mp3');
+  // Send this buffer off to our shim to have it start playing
+  console.log('beginning to play!');
 
-  console.log('chunking', buff.length, 'bytes.');
-  console.log('ret: ', hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length));
+  var streamID = hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
+  console.log('stream ID', streamID);
 
+  if (streamID == -1) {
+    if (callback) {
+      callback(new Error("Unable to allocate memory to play buffer"));
+    }
 
-  // var len = buff.length;
-  // var chunks = [], clen =  64;
-  // var p = 0, i = 0;
-  // while (p < len) {
-  //   chunks[i] = buff.slice(p, p + clen);
-  //   i = i + 1;
-  //   p = p + clen;
-  // }
+    return;
+  }
+  else if (streamID == -2) {
+    if (callback) {
+      callback(new Error("Audio playback requires one GPIO Interrupt and none are available."));
+    }
 
-  // console.log('done chunking:', chunks.length, 'chunks. Playing song...');
+    return;
+  }
+  else {
+    _audioCallbacks[streamID] = callback;
+  }
 
-  // this.MP3_DCS.low();
-  // async.eachSeries(
-  //   chunks, 
-  //   function playChunk(chunk, callback) {
-  //     while(!this.MP3_DREQ.read()){};
-  //     this.spi.transfer(chunk, callback);
-  //   }.bind(this),
-  //   function playComplete(err) {
-  //     this.MP3_DCS.high();
-  //     callback && callback(err);
-  //   }.bind(this)
-  // );
+  this.emit('play');
 }
 exports.use = use;

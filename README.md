@@ -140,4 +140,7 @@ audio.on('pause', function() {...} );
 // The buffer was stopped
 audio.on('stop', function() {...} );
 
+// The buffer finished playing
+audio.on('finish', function(err) {...})
+
 ```
