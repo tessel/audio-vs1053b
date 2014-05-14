@@ -3,7 +3,6 @@
 var fs = require('fs');
 var events = require('events');
 var util = require('util');
-var async = require('async');
 var hw = process.binding('hw')
 
 // VS10xx SCI Registers
@@ -122,6 +121,7 @@ Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
     if (err) { return callback && callback(err); }
     else {
+      console.log('read sci mode', mode);
       this._writeSciRegister16(SCI_MODE, mode | 2, function(err) {
         if (err) { return callback && callback(err); }
         else {
@@ -337,7 +337,7 @@ Audio.prototype.play = function(buff, callback) {
   // Send this buffer off to our shim to have it start playing
   console.log('beginning to play!');
 
-  var streamID = hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
+  var streamID = hw.audio_play_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
   console.log('stream ID', streamID);
 
   if (streamID == -1) {
@@ -359,5 +359,13 @@ Audio.prototype.play = function(buff, callback) {
   }
 
   this.emit('play');
+}
+
+Audio.prototype.pause = function(callback) {
+
+}
+
+Audio.prototype.stop = function(callback) {
+
 }
 exports.use = use;

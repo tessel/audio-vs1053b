@@ -89,11 +89,15 @@ audio.startRecording( function(err) {...} );
 // Stop recording sound and return an OGG-encoded buffer
 audio.stopRecording( function(err, oggBuff) {...} );
 
-// Play a buffer
-audio.play( audioBuff, function(err) {...} );
+// Play a buffer. If no buffer is passed in, the module
+// will attempt to resume a buffer that was paused.
+audio.play( [audioBuff], function(err) {...} );
 
 // Pause the buffer
 audio.pause( function(err) {...} );
+
+// Starts playing 
+audio.resume(function(err) {..});
 
 // Stop playing and flush the buffer
 audio.stop( function(err) {...} );
@@ -136,6 +140,9 @@ audio.on('play', function() {...} );
 
 // The buffer was paused
 audio.on('pause', function() {...} );
+
+// The buffer was resumed
+audio.on('resume', function() {...})
 
 // The buffer was stopped
 audio.on('stop', function() {...} );
