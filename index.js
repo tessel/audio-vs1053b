@@ -90,7 +90,6 @@ Audio.prototype.initialize = function(callback) {
 
   // Waits for the audio completion event which signifies that a buffer has finished streaming
   process.on('audio_complete', function playComplete(errBool, completedStream) {
-    console.log('audio was completed!', errBool, completedStream);
     // Get the callback if one was saved
     var callback = _audioCallbacks[completedStream];
 
@@ -139,6 +138,10 @@ Audio.prototype._checkVersion = function(callback) {
   this._readSciRegister16(SCI_STATUS, function(err, MP3Status) { 
     if (err) { return callback && callback(err); }
     else if ((MP3Status >> 4) & 0x000F != 4){
+      var err = new Error("Invalid version returned from module.");
+
+      this.emit('error', err);
+
       return callback && callback(new Error("Invalid version returned from module."));
     }
     else {
@@ -345,8 +348,7 @@ Audio.prototype.play = function(buff, callback) {
   }
 
   // Send this buffer off to our shim to have it start playing
-  var streamID = hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
-  console.log('stream ID', streamID);
+  var streamID = hw.audio_play_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
 
   if (streamID == -1) {
     if (callback) {

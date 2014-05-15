@@ -16,22 +16,22 @@ audio.on('ready', function() {
         console.log("Done playing the first song");
       }
     });
-    setTimeout(function audioPause() {
-      console.log('pausing!');
-      audio.pause(function paused() {
-        setTimeout(function audioResume() {
-          audio.play();
-          console.log('started playing again');
-          setTimeout(function stopping() {
-            console.log('stopping');
-            audio.stop(function stopped() {
-              console.log('stopped!');
-            })
-          }, 1000);
-        }, 1000);
-      });
+    // setTimeout(function audioPause() {
+    //   console.log('pausing!');
+    //   audio.pause(function paused() {
+    //     setTimeout(function audioResume() {
+    //       audio.play();
+    //       console.log('started playing again');
+    //         setTimeout(function stopping() {
+    //           console.log('stopping');
+    //           audio.stop(function stopped() {
+    //             console.log('stopped!');
+    //           })
+    //         }, 1000);
+    //     }, 1000);
+    //   });
 
-    }, 1000);
+    // }, 1000);
   })
 });
 
