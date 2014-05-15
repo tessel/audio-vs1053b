@@ -96,9 +96,6 @@ audio.play( [audioBuff], function(err) {...} );
 // Pause the buffer
 audio.pause( function(err) {...} );
 
-// Starts playing 
-audio.resume(function(err) {..});
-
 // Stop playing and flush the buffer
 audio.stop( function(err) {...} );
 
@@ -140,9 +137,6 @@ audio.on('play', function() {...} );
 
 // The buffer was paused
 audio.on('pause', function() {...} );
-
-// The buffer was resumed
-audio.on('resume', function() {...})
 
 // The buffer was stopped
 audio.on('stop', function() {...} );

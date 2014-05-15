@@ -28,6 +28,8 @@ var GPIO_DIR_ADDR = 0xC017
   , GPIO_READ_ADDR = 0xC018
   , GPIO_SET_ADDR = 0xC019;
 
+var _audioCallbacks = {};
+
 function use (hardware, next) {
   return new Audio(hardware, next);
 }
@@ -88,6 +90,7 @@ Audio.prototype.initialize = function(callback) {
 
   // Waits for the audio completion event which signifies that a buffer has finished streaming
   process.on('audio_complete', function playComplete(errBool, completedStream) {
+    console.log('audio was completed!', errBool, completedStream);
     // Get the callback if one was saved
     var callback = _audioCallbacks[completedStream];
 
@@ -121,7 +124,6 @@ Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
     if (err) { return callback && callback(err); }
     else {
-      console.log('read sci mode', mode);
       this._writeSciRegister16(SCI_MODE, mode | 2, function(err) {
         if (err) { return callback && callback(err); }
         else {
@@ -330,14 +332,20 @@ Audio.prototype.setOutput = function(output, callback) {
   }
 }
 
-
-var _audioCallbacks = {};
-
 Audio.prototype.play = function(buff, callback) {
-  // Send this buffer off to our shim to have it start playing
-  console.log('beginning to play!');
+  // Check if no buffer was passed in but a callback was
+  // (the user would like to resume playback)
+  if (!callback && typeof buff == "function") {
+    callback = buff;
+    buff = new Buffer(0);
+  }
+  // Check if there was no buffer or callback passed in
+  else if (!buff && !callback) {
+    buff = new Buffer(0);
+  }
 
-  var streamID = hw.audio_play_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
+  // Send this buffer off to our shim to have it start playing
+  var streamID = hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
   console.log('stream ID', streamID);
 
   if (streamID == -1) {
@@ -362,10 +370,30 @@ Audio.prototype.play = function(buff, callback) {
 }
 
 Audio.prototype.pause = function(callback) {
+  var err;
+  var ret = hw.audio_pause_buffer();
 
+  if (ret < 0) {
+    err = new Error("A buffer is not being played.");
+    this.emit('error', err);
+  }
+
+  if (callback) {
+    callback(err);
+  }
 }
 
 Audio.prototype.stop = function(callback) {
+  var err;
+  var ret = hw.audio_stop_buffer();
 
+  if (ret < 0) {
+    err = new Error("Not in a valid state to stop.");
+    this.emit('error', err);
+  }
+
+  if (callback) {
+    callback(err);
+  }
 }
 exports.use = use;
