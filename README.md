@@ -83,11 +83,11 @@ audio.setInput( input, function(err) {...} );
 // Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.
 audio.setOutput(output, function(err) {...} );
 
-// Start recording sound from the input.
+// Start recording sound from the input. (Receive data in the 'data' event)
 audio.startRecording( function(err) {...} );
 
-// Stop recording sound and return an OGG-encoded buffer
-audio.stopRecording( function(err, oggBuff) {...} );
+// Stop recording sound
+audio.stopRecording( function(err) {...} );
 
 // Play a buffer. If no buffer is passed in, the module
 // will attempt to resume a buffer that was paused.
@@ -128,6 +128,9 @@ audio.on('output', function(output) {...} );
 
 // Started recording from the input
 audio.on('startRecording', function() {...} );
+
+// Received recorded data
+audio.on('data', function(audioBuff) {...} );
 
 // Stopped recording on the input
 audio.on('stopRecording', function() {...} );

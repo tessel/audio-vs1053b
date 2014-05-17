@@ -23,12 +23,15 @@ var SCI_MODE = 0x00
   , SCI_AICTRL2 = 0x0E
   , SCI_AICTRL3 = 0x0F;
 
+var MODE_SM_RESET = 0x04;
 
 var GPIO_DIR_ADDR = 0xC017
   , GPIO_READ_ADDR = 0xC018
   , GPIO_SET_ADDR = 0xC019;
 
 var _audioCallbacks = {};
+var _fillBuff = new Buffer(5000);
+_fillBuff.fill(0);
 
 function use (hardware, next) {
   return new Audio(hardware, next);
@@ -123,7 +126,7 @@ Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
     if (err) { return callback && callback(err); }
     else {
-      this._writeSciRegister16(SCI_MODE, mode | 2, function(err) {
+      this._writeSciRegister16(SCI_MODE, mode | MODE_SM_RESET, function(err) {
         if (err) { return callback && callback(err); }
         else {
           while (!this.MP3_DREQ);
@@ -398,4 +401,37 @@ Audio.prototype.stop = function(callback) {
     callback(err);
   }
 }
+
+Audio.prototype.startRecording = function(callback) {
+  var self = this;
+
+  console.log('dir:', __dirname + "/plugins/test.img");
+  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, __dirname + "/plugins/test.img", _fillBuff);
+  console.log("Return value from start recording", ret);
+
+  process.on('audio_data', function recordedData(length) {
+    var newData = _fillBuff.slice(0, length);
+    self.emit('data', newData);
+  });
+
+  if (callback) {
+    callback();
+  }
+}
+
+Audio.prototype.stopRecording = function(callback) {
+  var ret = hw.audio_stop_recording();
+  console.log("Return value from start recording", ret);
+
+  process.on('audio_complete', function recordedData(length) {
+    var newData = _fillBuff.slice(0, length);
+    self.emit('data', newData);
+    self.emit('stopRecording');
+  });
+
+  if (callback) {
+    callback();
+  }
+}
+
 exports.use = use;
