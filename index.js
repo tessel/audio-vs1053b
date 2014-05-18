@@ -407,30 +407,67 @@ Audio.prototype.startRecording = function(callback) {
 
   console.log('dir:', __dirname + "/plugins/test.img");
   var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, __dirname + "/plugins/test.img", _fillBuff);
-  console.log("Return value from start recording", ret);
 
-  process.on('audio_data', function recordedData(length) {
-    var newData = _fillBuff.slice(0, length);
-    self.emit('data', newData);
-  });
+  if (ret < 0) {
+    var err = new Error("Not in a valid state to record.");
 
-  if (callback) {
-    callback();
+    if (callback) {
+      callback(err);
+    }
+
+    this.emit('error', err);
+
+    return;
+  }
+  else {
+
+    process.on('audio_data', function recordedData(length) {
+      var newData = _fillBuff.slice(0, length);
+      self.emit('data', newData);
+    });
+
+    if (callback) {
+      callback();
+    }
+
+    this.emit('startRecording');
   }
 }
 
 Audio.prototype.stopRecording = function(callback) {
+  var self = this;
+
   var ret = hw.audio_stop_recording();
-  console.log("Return value from start recording", ret);
 
-  process.on('audio_complete', function recordedData(length) {
-    var newData = _fillBuff.slice(0, length);
-    self.emit('data', newData);
-    self.emit('stopRecording');
-  });
+  if (ret < 0) {
+    var err = new Error("Not in valid state to stop recording.");
 
-  if (callback) {
-    callback();
+    if (callback) {
+      callback(err);
+    }
+
+    this.emit('error', err);
+
+    return;
+  }
+  else {
+
+    process.once('audio_complete', function recordedData(length) {
+      // Stop listening for more data
+      self.removeAllListeners('audio_data');
+      // Grab what's left in the buffer
+      var newData = _fillBuff.slice(0, length);
+      // Emit it
+      self.emit('data', newData);
+
+      // If a callback was provided, return it
+      if (callback) {
+        callback();
+      }
+      
+      // Stop recording
+      self.emit('stopRecording');
+    });
   }
 }
 

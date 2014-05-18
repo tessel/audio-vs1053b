@@ -26,11 +26,11 @@ audio.on('stopRecording', function() {
 
 function testRecording() {
   audio.startRecording(function() {
-    setTimeout(function stopRecording() {
-      audio.stopRecording(function stopped() {
-        console.log("Stop recording callback called...");
-      })
-    }, 3000);
+    // setTimeout(function stopRecording() {
+      // audio.stopRecording(function stopped() {
+        // console.log("Stop recording callback called...");
+      // })
+    // }, 3000);
   })
 }
 
