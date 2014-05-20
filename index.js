@@ -33,6 +33,7 @@ var _audioCallbacks = {};
 var _fillBuff = new Buffer(5000);
 _fillBuff.fill(0);
 
+
 function use (hardware, next) {
   return new Audio(hardware, next);
 }
@@ -142,8 +143,6 @@ Audio.prototype._checkVersion = function(callback) {
     if (err) { return callback && callback(err); }
     else if ((MP3Status >> 4) & 0x000F != 4){
       var err = new Error("Invalid version returned from module.");
-
-      this.emit('error', err);
 
       return callback && callback(new Error("Invalid version returned from module."));
     }
@@ -353,9 +352,40 @@ Audio.prototype.play = function(buff, callback) {
   // Send this buffer off to our shim to have it start playing
   var streamID = hw.audio_play_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
 
+  if (streamID < 0) {
+    if (streamID == -1) {
+      if (callback) {
+        callback(new Error("You must stop recording before starting playback"));
+      }
+
+      return;
+    }
+    else if (streamID == -2) {
+      if (callback) {
+        callback(new Error("Audio playback requires one GPIO Interrupt and none are available."));
+      }
+
+      return;
+    }
+    else if (streamID == -3) {
+      if (callback) {
+        callback(new Error("Unable to allocate memory required for transfer..."));
+      }
+    }
+  }
+  else {
+    _audioCallbacks[streamID] = callback;
+  }
+
+  this.emit('play');
+}
+
+Audio.prototype.queue = function(buff, callback) {
+  var streamID = hw.audio_queue_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
+
   if (streamID == -1) {
     if (callback) {
-      callback(new Error("Unable to allocate memory to play buffer"));
+      callback(new Error("You must stop recording before starting playback"));
     }
 
     return;
@@ -370,8 +400,6 @@ Audio.prototype.play = function(buff, callback) {
   else {
     _audioCallbacks[streamID] = callback;
   }
-
-  this.emit('play');
 }
 
 Audio.prototype.pause = function(callback) {
@@ -402,11 +430,40 @@ Audio.prototype.stop = function(callback) {
   }
 }
 
-Audio.prototype.startRecording = function(callback) {
+Audio.prototype.availableRecordingProfiles = function() {
+  return [
+          'voice',
+          'wideband-voice',
+          'wideband-stereo',
+          'hifi-voice',
+          'stero-music'
+          ];
+}
+
+Audio.prototype.startRecording = function(profile, callback) {
   var self = this;
 
-  console.log('dir:', __dirname + "/plugins/test.img");
-  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, __dirname + "/plugins/test.img", _fillBuff);
+  if (!callback && typeof profile == "function") {
+    callback = profile;
+    profile = "hifi-voice";
+  }
+  else if (!profile && !callback) {
+    profile = "hifi-voice";
+  }
+
+  if (self.availableRecordingProfiles().indexOf(profile) == -1) {
+    var err = new Error("Invalid profile name. See audio.availableRecordingProfiles()");
+    if (callback) {
+      callback(err);
+    }
+    self.emit('error', err);
+    return;
+  }
+
+  var pluginDir = __dirname + "/plugins/" + profile + ".img";
+  console.log('pluginDir')
+
+  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff);
 
   if (ret < 0) {
     var err = new Error("Not in a valid state to record.");
@@ -437,6 +494,23 @@ Audio.prototype.startRecording = function(callback) {
 Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
+  process.once('audio_complete', function recordedData(length) {
+    // Stop listening for more data
+    self.removeAllListeners('audio_data');
+    // Grab what's left in the buffer
+    var newData = _fillBuff.slice(0, length);
+    // Emit it
+    self.emit('data', newData);
+
+    // If a callback was provided, return it
+    if (callback) {
+      callback();
+    }
+    
+    // Stop recording
+    self.emit('stopRecording');
+  });
+
   var ret = hw.audio_stop_recording();
 
   if (ret < 0) {
@@ -449,25 +523,6 @@ Audio.prototype.stopRecording = function(callback) {
     this.emit('error', err);
 
     return;
-  }
-  else {
-
-    process.once('audio_complete', function recordedData(length) {
-      // Stop listening for more data
-      self.removeAllListeners('audio_data');
-      // Grab what's left in the buffer
-      var newData = _fillBuff.slice(0, length);
-      // Emit it
-      self.emit('data', newData);
-
-      // If a callback was provided, return it
-      if (callback) {
-        callback();
-      }
-      
-      // Stop recording
-      self.emit('stopRecording');
-    });
   }
 }
 

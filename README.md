@@ -83,10 +83,11 @@ audio.setInput( input, function(err) {...} );
 // Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.
 audio.setOutput(output, function(err) {...} );
 
-// Start recording sound from the input. (Receive data in the 'data' event)
-audio.startRecording( function(err) {...} );
+// Start recording sound from the input. (Receive data in the 'data' event) Callback called after recording initialized (not stopped.)
+quality is an optional argument that can be 'voice', 'wideband-voice', 'wideband-stereo', 'hifi-voice', or 'stereo-music'. Default is 'hifi-voice'.
+audio.startRecording([profile] function(err) {...} );
 
-// Stop recording sound
+// Stop recording sound (note that may receive one more 'data' event before this completes when the buffer is flushed.)
 audio.stopRecording( function(err) {...} );
 
 // Play a buffer. If no buffer is passed in, the module
@@ -104,6 +105,9 @@ audio.createWriteableStream();
 
 // Returns a readable stream of mic data
 audio.createReadableStream()
+
+// Returns an array of available profiles
+audio.availableRecordingProfiles();
 
 ```
 
