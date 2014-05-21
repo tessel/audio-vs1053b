@@ -4,6 +4,16 @@
 
 ```npm install audio-vs1053b```
 
+## Limitations
+The current version of the Tessel runtime is too slow to play audio files smoothly. That means we wrote a custom C shim that handles most of the playback and recording of data. There are several consequences of the C shim:
+
+* Any other modules that use SPI for communication will be blocked while the audio module is playing a buffer.
+* You can only have one audio module attached to Tessel at a time. 
+* Updates to the Audio Module driver must be released in both firmware and this npm repo.
+
+It sucks but we're expecting major runtime speed improvements to render the C shim uncessesary within the next couple months.
+
+
 ##Example
 1. Writing mic data to a file (w/out streams)
 ```.js
