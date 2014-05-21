@@ -63,7 +63,7 @@ function testSwitchRecordPlay() {
     audio.stopRecording(function recStopped(err) {
       if (err) return console.log("err stopping recording..", err);
       else {
-        // audio.play(rec);
+        audio.play(song);
       }
     })
   }, 3000);
@@ -77,9 +77,6 @@ function testRecording() {
       })
     }, 1000);
   });
-  audio.play(song);
-  audio.queue(song);
-  audio.stop();
 }
 
 function testPlayback() {
