@@ -91,28 +91,6 @@ Audio.prototype.initialize = function(callback) {
       });
     }
   });
-
-  // Waits for the audio completion event which signifies that a buffer has finished streaming
-  process.on('audio_complete', function playComplete(errBool, completedStream) {
-    // Get the callback if one was saved
-    var callback = _audioCallbacks[completedStream];
-
-    // If it exists
-    if (callback) {
-      // Remove it from our datastructure
-      delete _audioCallbacks[completedStream];
-
-      var err;
-      // Generate an error message if there was an error
-      if (errBool) {
-        err = new Error("Error sending buffer over SPI");
-      }
-      // Call the callback
-      callback(err);
-
-      self.emit('finish', err);
-    }
-  });
 }
 
 Audio.prototype._failConnect = function(err, callback) {
@@ -340,6 +318,8 @@ Audio.prototype.setOutput = function(output, callback) {
 Audio.prototype.play = function(buff, callback) {
   // Check if no buffer was passed in but a callback was
   // (the user would like to resume playback)
+  var self = this;
+
   if (!callback && typeof buff == "function") {
     callback = buff;
     buff = new Buffer(0);
@@ -352,54 +332,54 @@ Audio.prototype.play = function(buff, callback) {
   // Send this buffer off to our shim to have it start playing
   var streamID = hw.audio_play_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
 
-  if (streamID < 0) {
-    if (streamID == -1) {
-      if (callback) {
-        callback(new Error("You must stop recording before starting playback"));
-      }
-
-      return;
-    }
-    else if (streamID == -2) {
-      if (callback) {
-        callback(new Error("Audio playback requires one GPIO Interrupt and none are available."));
-      }
-
-      return;
-    }
-    else if (streamID == -3) {
-      if (callback) {
-        callback(new Error("Unable to allocate memory required for transfer..."));
-      }
-    }
-  }
-  else {
-    _audioCallbacks[streamID] = callback;
-  }
+  this._handleStreamID(streamID, callback);
 
   this.emit('play');
 }
 
+Audio.prototype._handleStreamID = function(streamID, callback) {
+  // If stream id is less than zero, an error occured
+  if (streamID < 0) {
+    var err;
+
+    if (streamID == -1) {
+      err = new Error("Attempt to move to an invalid state.");
+    }
+    else if (streamID == -2) {
+      err = new Error("Audio playback requires one GPIO Interrupt and none are available.");
+    }
+    else if (streamID == -3) {
+      err = new Error("Unable to allocate memory required for transfer...");
+    }
+
+    if (callback) {
+      callback(err);
+    }
+
+    this.emit('error', err);
+
+    return;
+  }
+  // No error occured
+  else {
+    // If a callback was provided
+    if (callback) {
+      // Add it to the callbacks dict
+      _audioCallbacks[streamID] = callback;
+    }
+  }
+}
+
 Audio.prototype.queue = function(buff, callback) {
+  if (!buffer) {
+    if (callback) {
+      callback(new Error("Must pass valid buffer to queue."));
+    }
+    return;
+  }
   var streamID = hw.audio_queue_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
 
-  if (streamID == -1) {
-    if (callback) {
-      callback(new Error("You must stop recording before starting playback"));
-    }
-
-    return;
-  }
-  else if (streamID == -2) {
-    if (callback) {
-      callback(new Error("Audio playback requires one GPIO Interrupt and none are available."));
-    }
-
-    return;
-  }
-  else {
-    _audioCallbacks[streamID] = callback;
-  }
+  this._handleStreamID(streamID, callback);
 }
 
 Audio.prototype.pause = function(callback) {
@@ -421,7 +401,7 @@ Audio.prototype.stop = function(callback) {
   var ret = hw.audio_stop_buffer();
 
   if (ret < 0) {
-    err = new Error("Not in a valid state to stop.");
+    err = new Error("You must stopRecording before calling stop.");
     this.emit('error', err);
   }
 
@@ -461,13 +441,21 @@ Audio.prototype.startRecording = function(profile, callback) {
   }
 
   var pluginDir = __dirname + "/plugins/" + profile + ".img";
-  console.log('pluginDir')
 
   var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff);
 
   if (ret < 0) {
-    var err = new Error("Not in a valid state to record.");
+    var err; 
 
+    if (ret == -1) {
+      err = new Error("Not able to allocate recording memory...");
+    }
+    else if (ret == -2) {
+      err = new Error("Invalid plugin file.");
+    }
+    else if (ret == -3) {
+      err = new Error("Module must be in an idle state to start recording.");
+    }
     if (callback) {
       callback(err);
     }
@@ -476,11 +464,20 @@ Audio.prototype.startRecording = function(profile, callback) {
 
     return;
   }
+
   else {
 
-    process.on('audio_data', function recordedData(length) {
+    function recordedData(length) {
       var newData = _fillBuff.slice(0, length);
+      console.log('first byte received is', newData[0]);
+      console.log('last byte received is', newData[newData.length-1]);
       self.emit('data', newData);
+    }
+
+    process.on('audio_data', recordedData);
+
+    process.once('audio_complete', function removeEvent() {
+      self.removeListener('audio_data', recordedData);
     });
 
     if (callback) {
@@ -498,7 +495,10 @@ Audio.prototype.stopRecording = function(callback) {
     // Stop listening for more data
     self.removeAllListeners('audio_data');
     // Grab what's left in the buffer
+    console.log('final length', length);
     var newData = _fillBuff.slice(0, length);
+    console.log('first byte received is', newData[0]);
+    console.log('last byte received is', newData[newData.length-1]);
     // Emit it
     self.emit('data', newData);
 

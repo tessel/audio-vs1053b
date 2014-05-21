@@ -1,10 +1,17 @@
 var tessel = require('tessel');
 var fs = require('fs');
 var audio = require('./').use(tessel.port('a'));
-var song = fs.readFileSync('/app/sample.mp3');
+var song = fs.readFileSync('/app/aud1s.ogg');
 
+function sendFile(buf) {
+  console.log('sending', buf);
+  process.binding('hw').usb_send(0xFFFF, buf);
+}
+
+var datas = [];
 audio.on('ready', function() {
   console.log("Ready to go!");
+  // testSwitchPlayRecord();
   // testSwitchRecordPlay();
   testRecording();
   // testPlayback();
@@ -12,19 +19,24 @@ audio.on('ready', function() {
 });
 
 audio.on('data', function weRecorded(data) {
-  console.log('got this recording data!', data);
+  console.log('got this recording data!', data.length);
+  datas.push(data);
 })
 
 audio.on('error', function(err) {
-  console.log("Failed to connect", err);
+  console.log("ERROR:", err);
 })
 
 audio.on('startRecording', function() {
   console.log('started recording!');
 });
 
+
 audio.on('stopRecording', function() {
   console.log('stopped recording!');
+  var rec = Buffer.concat(datas);
+  console.log('playing len', rec);
+  sendFile(rec);
 });
 
 function testSwitchPlayRecord() {
@@ -48,20 +60,23 @@ function testSwitchRecordPlay() {
     audio.stopRecording(function recStopped(err) {
       if (err) return console.log("err stopping recording..", err);
       else {
-        audio.queue(song);
+        // audio.play(rec);
       }
     })
   }, 3000);
 }
 
 function testRecording() {
-  audio.startRecording(function() {
+  audio.startRecording('voice', function() {
     setTimeout(function stopRecording() {
       audio.stopRecording(function stopped() {
         console.log("Stop recording callback called...");
       })
-    }, 3000);
-  })
+    }, 1000);
+  });
+  audio.play(song);
+  audio.queue(song);
+  audio.stop();
 }
 
 function testPlayback() {
@@ -92,3 +107,24 @@ function testQueue() {
     audio.queue(song);
   });
 }
+
+// var chunk = 100;
+// var incr = Math.floor(song.length/chunk);
+// console.log('length', song.length, 'floor', Math.floor(song.length/chunk));
+
+// for (var i = 0; i < incr; i++) {
+//   var pos = chunk * i;
+//   console.log('pos', pos);
+//   audio.emit('data', song.slice(pos, pos + chunk));
+// }
+
+// if (song.length%chunk) {
+//   var pos = chunk * incr;
+//   console.log('last', pos, 'to', song.length%chunk);
+//   audio.emit('data',song.slice(pos, pos + song.length%chunk));
+// }
+
+// audio.emit('stopRecording');
+
+// sendFile(Buffer.concat(datas));
+
