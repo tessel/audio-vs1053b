@@ -91,6 +91,28 @@ Audio.prototype.initialize = function(callback) {
       });
     }
   });
+
+  // Waits for the audio completion event which signifies that a buffer has finished streaming
+  process.on('audio_complete', function playComplete(errBool, completedStream) {
+    // Get the callback if one was saved
+    var callback = _audioCallbacks[completedStream];
+
+    // If it exists
+    if (callback) {
+      // Remove it from our datastructure
+      delete _audioCallbacks[completedStream];
+
+      var err;
+      // Generate an error message if there was an error
+      if (errBool) {
+        err = new Error("Error sending buffer over SPI");
+      }
+      // Call the callback
+      callback(err);
+
+      self.emit('finish', err);
+    }
+  }); 
 }
 
 Audio.prototype._failConnect = function(err, callback) {
@@ -335,6 +357,8 @@ Audio.prototype.play = function(buff, callback) {
   this._handleStreamID(streamID, callback);
 
   this.emit('play');
+
+  return streamID;
 }
 
 Audio.prototype._handleStreamID = function(streamID, callback) {
@@ -356,7 +380,7 @@ Audio.prototype._handleStreamID = function(streamID, callback) {
       callback(err);
     }
 
-    this.emit('error', err);
+    this.emit('error', err, streamID);
 
     return;
   }
@@ -380,6 +404,8 @@ Audio.prototype.queue = function(buff, callback) {
   var streamID = hw.audio_queue_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
 
   this._handleStreamID(streamID, callback);
+
+  return streamID;
 }
 
 Audio.prototype.pause = function(callback) {
@@ -487,6 +513,7 @@ Audio.prototype.startRecording = function(profile, callback) {
     this.emit('startRecording');
   }
 }
+
 
 Audio.prototype.stopRecording = function(callback) {
   var self = this;

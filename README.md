@@ -140,12 +140,15 @@ audio.on('data', function(audioBuff) {...} );
 audio.on('stopRecording', function() {...} );
 
 // A buffer is beginning to be played
+// Returns a streamID
 audio.on('play', function() {...} );
 
-// The buffer was paused
+audio.on('played', function(streamID) {...})
+
+// Playback was paused
 audio.on('pause', function() {...} );
 
-// The buffer was stopped
+// Playback was stopped
 audio.on('stop', function() {...} );
 
 // The buffer finished playing
