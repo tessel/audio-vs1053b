@@ -22,7 +22,7 @@ var fs = require('fs');
 var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
   
   // Start recording data for a second into a file
-  audio.setInput('microphone', function(err) {
+  audio.setInput('mic', function(err) {
     
     // Start the recording
     audio.startRecording(function(err) {
@@ -48,7 +48,7 @@ var fs = require('fs');
 var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
   
   // Start recording data for a second into a file
-  audio.setInput('microphone', function(err) {
+  audio.setInput('mic', function(err) {
     // Open a stream to a file
     var file = fs.createWriteStream('lineInData.ogg');
     // Create a readable stream of incoming data
@@ -87,7 +87,7 @@ var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
 // Set the output volume. Level is a Number from 0.0 to 1.0
 audio.setVolume( level, function(err) {...} );
 
-// Set the input to either 'lineIn' or 'microphone'. Defaults to 'lineIn'.
+// Set the input to either 'lineIn' or 'mic'. Defaults to 'lineIn'.
 audio.setInput( input, function(err) {...} );
 
 // Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.

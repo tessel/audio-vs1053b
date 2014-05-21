@@ -274,7 +274,7 @@ Audio.prototype.setDefaultIO = function(callback) {
   self._enableAudioOutput(function(err) {
     if (err) { self._failConnect(err, callback); }
     else {
-      self.setInput('microphone', function(err) {
+      self.setInput('mic', function(err) {
         if (err) { self._failConnect(err, callback); }
         else {
           self.setOutput('headphones', function(err) {
@@ -302,13 +302,13 @@ Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, 
 }
 
 Audio.prototype.setInput = function(input, callback) {
-  if (input != 'lineIn' && input != 'microphone') {
+  if (input != 'lineIn' && input != 'mic') {
     return callback && callback(new Error("Invalid input requested..."));
   }
   else {
     this.input = input;
 
-    var bit = (input == 'microphone' ? 1 : 0);
+    var bit = (input == 'mic' ? 1 : 0);
 
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
@@ -468,7 +468,8 @@ Audio.prototype.startRecording = function(profile, callback) {
 
   var pluginDir = __dirname + "/plugins/" + profile + ".img";
 
-  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff);
+  var micInput = this.input === "mic" ? 1 : 0;
+  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff, micInput);
 
   if (ret < 0) {
     var err; 

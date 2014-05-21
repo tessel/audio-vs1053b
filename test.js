@@ -13,8 +13,8 @@ audio.on('ready', function() {
   console.log("Ready to go!");
   // testSwitchPlayRecord();
   // testSwitchRecordPlay();
-  // testRecording();
-  testPlayback();
+  testRecording();
+  // testPlayback();
   // testQueue();
 });
 
