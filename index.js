@@ -4,7 +4,7 @@ var fs = require('fs');
 var events = require('events');
 var util = require('util');
 var hw = process.binding('hw')
-var Writable = require('stream').Writable;
+var Duplex = require('stream').Duplex;
 
 // VS10xx SCI Registers
 var SCI_MODE = 0x00
@@ -41,6 +41,9 @@ function use (hardware, next) {
 
 
 function Audio(hardware, callback) {
+
+  Duplex.call(this);
+
   // Set the spi port
   this.spi = new hardware.SPI({
     clockSpeed: 1000000,
@@ -55,10 +58,21 @@ function Audio(hardware, callback) {
   this.input = "";
   this.output = "";
   this.initialize(callback);
+
+  // this._write = function (chunk, enc, next) {
+  //   // console.log('writing!', chunk.toString());
+  //   this.queue(chunk, function() {
+  //     console.log('done queuing...');
+  //   });
+  // };
+
+  // this._read = function (chunk, enc, next) {
+  //   console.log('reading!', chunk);
+  //   // next();
+  // };
 }
 
-util.inherits(Audio, events.EventEmitter);
-// util.inherits(Audio, Writable);
+util.inherits(Audio, Duplex);
 
 Audio.prototype.initialize = function(callback) {
   var self = this;

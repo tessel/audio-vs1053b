@@ -2,6 +2,7 @@ var tessel = require('tessel');
 var fs = require('fs');
 var song = fs.readFileSync('/app/aud1s.ogg');
 var audio = require('./').use(tessel.port['A']);
+var Readable = require('stream').Readable;
 
 
 function sendFile(buf) {
@@ -110,21 +111,28 @@ function testQueue() {
   });
 }
 
-// // var chunk = 100;
-// // var incr = Math.floor(song.length/chunk);
-// // console.log('length', song.length, 'floor', Math.floor(song.length/chunk));
+// var chunk = 100;
+// var incr = Math.floor(song.length/chunk);
+// console.log('length', song.length, 'floor', Math.floor(song.length/chunk));
 
-// // for (var i = 0; i < incr; i++) {
-// //   var pos = chunk * i;
-// //   console.log('pos', pos);
-// //   audio.emit('data', song.slice(pos, pos + chunk));
-// // }
+// var rs = new Readable;
+// for (var i = 0; i < incr; i++) {
+//   var pos = chunk * i;
+//   console.log('pos', pos);
+//   rs.push(song.slice(pos, pos + chunk));
+//   // audio.emit('data', song.slice(pos, pos + chunk));;
+// }
 
-// // if (song.length%chunk) {
-// //   var pos = chunk * incr;
-// //   console.log('last', pos, 'to', song.length%chunk);
-// //   audio.emit('data',song.slice(pos, pos + song.length%chunk));
-// // }
+// if (song.length%chunk) {
+//   var pos = chunk * incr;
+//   console.log('last', pos, 'to', song.length%chunk);
+//   rs.push(song.slice(pos, pos + song.length%chunk));
+//   // audio.emit('data',song.slice(pos, pos + song.length%chunk));
+// }
+
+// rs.push(null);
+
+// rs.pipe(audio);
 
 // // audio.emit('stopRecording');
 
