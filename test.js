@@ -1,7 +1,8 @@
 var tessel = require('tessel');
 var fs = require('fs');
+var song = fs.readFileSync('/app/aud1s.ogg');
 var audio = require('./').use(tessel.port['A']);
-// var song = fs.readFileSync('/app/aud1s.ogg');
+
 
 function sendFile(buf) {
   console.log('sending', buf);

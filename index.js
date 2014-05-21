@@ -64,27 +64,22 @@ Audio.prototype.initialize = function(callback) {
   var self = this;
 
   // Reset the mp3 decoder
-  console.log('reset');
   this._softReset(function(err) {
     if (err) { self._failConnect(err, callback); }
     else {
-      console.log('version');
       // Make sure we can comm and have the right version
       self._checkVersion(function(err) { 
         if (err) { self._failConnect(err, callback); }
         else {
-          console.log('clock...');
           // Set the clock speed higher
           self._setClockSpeeds(function(err) {
             if (err) { self._failConnect(err, callback); }
             else {
               // Enabke headphones and lineIn 
-              console.log('io...');
               self.setDefaultIO(function(err) {
                 if (err) { self._failConnect(err, callback); }
                 else {
                   // Call the callback
-                  console.log('callback...');
                   callback && callback(null, self);
                   // Ready the event
                   setImmediate(function() {
@@ -187,15 +182,11 @@ Audio.prototype._SPItransferArray = function(array, callback) {
 Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
 
   // TODO: Use a GPIO interrupt
-  console.log('waiting for dreq');
   while (!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating IC is available
   this.MP3_XCS.low(); //Select control
 
   //SCI consists of instruction byte, address byte, and 16-bit data word.
-  // TODO: Error handling
-  console.log('transferring byte...');
   this._SPItransferByte(0x03, function(err) {
-    console.log('transfer callback');
     this._SPItransferByte(addressbyte, function(err) {
       this._SPItransferByte(0xFF, function(err, response1) {
         // TODO: Use a GPIO interrupt
