@@ -172,6 +172,12 @@ Audio.prototype.createRecordStream = function() {
     }
   }
 
+  recordStream.once('finish', function() {
+    if (hw.audio_get_state() == 3) {
+      audio.stopRecording();
+    }
+  });
+
   return recordStream;
 }
 
