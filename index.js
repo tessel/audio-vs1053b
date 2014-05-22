@@ -4,7 +4,8 @@ var fs = require('fs');
 var events = require('events');
 var util = require('util');
 var hw = process.binding('hw')
-var Duplex = require('stream').Duplex;
+var Writable = require('stream').Writable;
+var Readable = require('stream').Readable;
 
 // VS10xx SCI Registers
 var SCI_MODE = 0x00
@@ -41,9 +42,6 @@ function use (hardware, next) {
 
 
 function Audio(hardware, callback) {
-
-  Duplex.call(this);
-
   // Set the spi port
   this.spi = new hardware.SPI({
     clockSpeed: 1000000,
@@ -57,22 +55,21 @@ function Audio(hardware, callback) {
 
   this.input = "";
   this.output = "";
+
+  // Waits for the audio completion event which signifies that a buffer has finished streaming
+  process.on('audio_playback_complete', this._handlePlaybackComplete.bind(this));
+
+  // Waits for the audio data event which is recorded data being output from the C shim
+  process.on('audio_recording_data', this._handleRecordedData.bind(this)); 
+
+  // Waits for final flushed buffer of a recording
+  process.on('audio_recording_complete', this._handleRecordedData.bind(this));
+
+  // Initialize the module
   this.initialize(callback);
-
-  // this._write = function (chunk, enc, next) {
-  //   // console.log('writing!', chunk.toString());
-  //   this.queue(chunk, function() {
-  //     console.log('done queuing...');
-  //   });
-  // };
-
-  // this._read = function (chunk, enc, next) {
-  //   console.log('reading!', chunk);
-  //   // next();
-  // };
 }
 
-util.inherits(Audio, Duplex);
+util.inherits(Audio, events.EventEmitter);
 
 Audio.prototype.initialize = function(callback) {
   var self = this;
@@ -107,28 +104,31 @@ Audio.prototype.initialize = function(callback) {
       });
     }
   });
+}
 
-  // Waits for the audio completion event which signifies that a buffer has finished streaming
-  process.on('audio_complete', function playComplete(errBool, completedStream) {
-    // Get the callback if one was saved
-    var callback = _audioCallbacks[completedStream];
+Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
+  // Get the callback if one was saved
+  var callback = _audioCallbacks[completedStream];
 
-    // If it exists
-    if (callback) {
-      // Remove it from our datastructure
-      delete _audioCallbacks[completedStream];
+  // If it exists
+  if (callback) {
+    // Remove it from our datastructure
+    delete _audioCallbacks[completedStream];
 
-      var err;
-      // Generate an error message if there was an error
-      if (errBool) {
-        err = new Error("Error sending buffer over SPI");
-      }
-      // Call the callback
-      callback(err);
-
-      self.emit('finish', err);
+    var err;
+    // Generate an error message if there was an error
+    if (errBool) {
+      err = new Error("Error sending buffer over SPI");
     }
-  }); 
+    // Call the callback
+    callback(err);
+
+    this.emit('finish', err);
+  }
+}
+
+Audio.prototype._handleRecordedData = function(length) {
+  this.emit('data', _fillBuff.slice(0, length));
 }
 
 Audio.prototype._failConnect = function(err, callback) {
@@ -138,6 +138,43 @@ Audio.prototype._failConnect = function(err, callback) {
 
   return callback && callback(err);
 }
+
+Audio.prototype.createPlayStream = function() {
+  var audio = this;
+
+  var playStream = new Writable;
+
+  playStream._write = function (chunk, enc, next) {
+    var err;
+    var ret = audio.queue(chunk);
+    if (ret < 0) {
+      err = new Error("Unable to queue the streamed buffer.");
+    }
+    next();
+  };
+  return playStream;
+}
+
+// Creates a Readable record stream
+Audio.prototype.createRecordStream = function() {
+  var audio = this;
+
+  var recordStream = new Readable;
+
+  audio.on('data', recordStream.push.bind(recordStream));
+
+  audio.on('audio_recording_complete', recordStream.push.bind(recordStream));
+
+  recordStream._read = function() {
+    // If we're not recording already
+    if (hw.audio_get_state() != 3) {
+      audio.startRecording();
+    }
+  }
+
+  return recordStream;
+}
+
 
 Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
@@ -410,14 +447,15 @@ Audio.prototype._handleStreamID = function(streamID, callback) {
 }
 
 Audio.prototype.queue = function(buff, callback) {
-  if (!buffer) {
+  if (!buff) {
     if (callback) {
       callback(new Error("Must pass valid buffer to queue."));
     }
     return;
   }
+  console.log('telling it to queue...', buff.length);
   var streamID = hw.audio_queue_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
-
+  console.log('stream id', streamID);
   this._handleStreamID(streamID, callback);
 
   return streamID;
@@ -457,9 +495,11 @@ Audio.prototype.availableRecordingProfiles = function() {
           'wideband-voice',
           'wideband-stereo',
           'hifi-voice',
-          'stero-music'
+          'stereo-music'
           ];
 }
+
+
 
 Audio.prototype.startRecording = function(profile, callback) {
   var self = this;
@@ -508,23 +548,9 @@ Audio.prototype.startRecording = function(profile, callback) {
   }
 
   else {
-
-    function recordedData(length) {
-      var newData = _fillBuff.slice(0, length);
-      console.log('first byte received is', newData[0]);
-      console.log('last byte received is', newData[newData.length-1]);
-      self.emit('data', newData);
-    }
-
-    process.on('audio_data', recordedData);
-
-    process.once('audio_complete', function removeEvent() {
-      self.removeListener('audio_data', recordedData);
-    });
-
     if (callback) {
       callback();
-    }
+    } 
 
     this.emit('startRecording');
   }
@@ -534,22 +560,11 @@ Audio.prototype.startRecording = function(profile, callback) {
 Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
-  process.once('audio_complete', function recordedData(length) {
-    // Stop listening for more data
-    self.removeAllListeners('audio_data');
-    // Grab what's left in the buffer
-    console.log('final length', length);
-    var newData = _fillBuff.slice(0, length);
-    console.log('first byte received is', newData[0]);
-    console.log('last byte received is', newData[newData.length-1]);
-    // Emit it
-    self.emit('data', newData);
-
+  process.once('audio_recording_complete', function recStopped(length) {
     // If a callback was provided, return it
     if (callback) {
       callback();
     }
-    
     // Stop recording
     self.emit('stopRecording');
   });

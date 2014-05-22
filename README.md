@@ -111,10 +111,10 @@ audio.pause( function(err) {...} );
 audio.stop( function(err) {...} );
 
 // Returns a stream that a buffer can be piped into to play audio
-audio.createWriteableStream();
+audio.createPlayStream();
 
 // Returns a readable stream of mic data
-audio.createReadableStream()
+audio.createRecordStream()
 
 // Returns an array of available profiles
 audio.availableRecordingProfiles();

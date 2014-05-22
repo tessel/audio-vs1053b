@@ -1,27 +1,13 @@
 var tessel = require('tessel');
 var fs = require('fs');
-var song = fs.readFileSync('/app/aud1s.ogg');
+var song = fs.readFileSync('/app/sample.mp3');
 var audio = require('./').use(tessel.port['A']);
 var Readable = require('stream').Readable;
-
-
-function sendFile(buf) {
-  console.log('sending', buf);
-  process.binding('hw').usb_send(0xFFFF, buf);
-}
-
+var filename = process.argv[2] || 'audio-recording.ogg';
 var datas = [];
-audio.on('ready', function() {
-  console.log("Ready to go!");
-  // testSwitchPlayRecord();
-  // testSwitchRecordPlay();
-  testRecording();
-  // testPlayback();
-  // testQueue();
-});
 
 audio.on('data', function weRecorded(data) {
-  console.log('got this recording data!', data.length);
+  console.log('got this recording data!', data.length);;
   datas.push(data);
 })
 
@@ -37,8 +23,8 @@ audio.on('startRecording', function() {
 audio.on('stopRecording', function() {
   console.log('stopped recording!');
   var rec = Buffer.concat(datas);
-  console.log('playing len', rec);
-  sendFile(rec);
+  console.log('playing len', rec.length);
+  process.sendfile(filename, rec);
 });
 
 
@@ -70,12 +56,12 @@ function testSwitchRecordPlay() {
 }
 
 function testRecording() {
-  audio.startRecording('voice', function() {
+  audio.startRecording('hifi-voice', function() {
     setTimeout(function stopRecording() {
       audio.stopRecording(function stopped() {
         console.log("Stop recording callback called...");
       })
-    }, 1000);
+    }, 4000);
   });
 }
 
@@ -85,7 +71,7 @@ function testPlayback() {
     if (err) return console.log('err setting volume', err);
     console.log('volume set.');
     
-    console.log('file read. Beginning to play...');  
+    console.log('file read. Beginning to play...', song.length);  
     audio.play(song, function(err) {
       if (err) {
         console.log("error playing song: ", err);
@@ -108,29 +94,51 @@ function testQueue() {
   });
 }
 
-// var chunk = 100;
-// var incr = Math.floor(song.length/chunk);
-// console.log('length', song.length, 'floor', Math.floor(song.length/chunk));
+function testPlayStream() {
+  var rs = new Readable;
+  var chunk = song.length/12;
+  var incr = Math.floor(song.length/chunk);
+  console.log('length', song.length, 'floor', Math.floor(song.length/chunk));
 
-// var rs = new Readable;
-// for (var i = 0; i < incr; i++) {
-//   var pos = chunk * i;
-//   console.log('pos', pos);
-//   rs.push(song.slice(pos, pos + chunk));
-//   // audio.emit('data', song.slice(pos, pos + chunk));;
-// }
+  
+  for (var i = 0; i < incr; i++) {
+    var pos = chunk * i;
+    console.log('pos', pos);
+    rs.push(song.slice(pos, pos + chunk));
 
-// if (song.length%chunk) {
-//   var pos = chunk * incr;
-//   console.log('last', pos, 'to', song.length%chunk);
-//   rs.push(song.slice(pos, pos + song.length%chunk));
-//   // audio.emit('data',song.slice(pos, pos + song.length%chunk));
-// }
+  }
 
-// rs.push(null);
+  if (song.length%chunk) {
+    var pos = chunk * incr;
+    console.log('last', pos, 'to', song.length%chunk);
+    rs.push(song.slice(pos, pos + song.length%chunk));
+  }
+  // rs.push(song);
+  rs.push(null);
 
-// rs.pipe(audio);
+  rs.pipe(audio.createPlayStream());
+}
 
-// // audio.emit('stopRecording');
+function testRecordStream() {
+  var Writable = require('stream').Writable;
+  var ws = Writable();
+  ws._write = function (chunk, enc, next) {
+      console.log("Write Stream Chunk: ", chunk);
+      next();
+  };
 
-// // sendFile(Buffer.concat(datas));
+  audio.createRecordStream().pipe(ws);
+}
+
+
+audio.on('ready', function() {
+  console.log("Ready to go!");
+  // testRecordStream();
+  // testPlayStream();
+  // testSwitchPlayRecord();
+  // testSwitchRecordPlay();
+  // testRecording();
+  // testPlayback();
+  // testQueue();
+  
+});
