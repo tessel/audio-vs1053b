@@ -42,9 +42,9 @@ function Audio(hardware, callback) {
   });
 
   // Set our register select pins
-  this.MP3_XCS = hardware.gpio(1).output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
-  this.MP3_DCS = hardware.gpio(2).output(true); //Data Chip Select / BSYNC Pin
-  this.MP3_DREQ = hardware.gpio(3).input() //Data Request Pin: Player asks for more data
+  this.MP3_XCS = hardware.digital[1].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
+  this.MP3_DCS = hardware.digital[2].output(true); //Data Chip Select / BSYNC Pin
+  this.MP3_DREQ = hardware.digital[3].input() //Data Request Pin: Player asks for more data
 
   this.input = "";
   this.output = "";
