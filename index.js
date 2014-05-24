@@ -107,23 +107,36 @@ Audio.prototype.initialize = function(callback) {
 }
 
 Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
-  // Get the callback if one was saved
-  var callback = _audioCallbacks[completedStream];
 
-  // If it exists
-  if (callback) {
-    // Remove it from our datastructure
-    delete _audioCallbacks[completedStream];
+  var self = this;
 
-    var err;
-    // Generate an error message if there was an error
-    if (errBool) {
-      err = new Error("Error sending buffer over SPI");
-    }
-    // Call the callback
-    callback(err);
+  if (self.lock) {
+    self.lock.release(function(err) {
+      if (err) {
+        self.emit('error', err);
+        return
+      }
+      else {
+        // Get the callback if one was saved
+        var callback = _audioCallbacks[completedStream];
 
-    this.emit('finish', err);
+        // If it exists
+        if (callback) {
+          // Remove it from our datastructure
+          delete _audioCallbacks[completedStream];
+
+          var err;
+          // Generate an error message if there was an error
+          if (errBool) {
+            err = new Error("Error sending buffer over SPI");
+          }
+          // Call the callback
+          callback(err);
+
+          self.emit('finish', err);
+        }
+      }
+    });
   }
 }
 
@@ -409,14 +422,25 @@ Audio.prototype.play = function(buff, callback) {
     buff = new Buffer(0);
   }
 
-  // Send this buffer off to our shim to have it start playing
-  var streamID = hw.audio_play_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
+  self.spi.lock(function(err, lock) {
+    if (err) {
+      if (callback) {
+        callback(err);
+      }
 
-  this._handleStreamID(streamID, callback);
+      return;
+    }
 
-  this.emit('play');
+    // Save the lock reference so we can free it later
+    self.lock = lock;
 
-  return streamID;
+    // Send this buffer off to our shim to have it start playing
+    var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+
+    self._handleStreamID(streamID, callback);
+
+    self.emit('play', streamID);
+  });
 }
 
 Audio.prototype._handleStreamID = function(streamID, callback) {
@@ -453,18 +477,35 @@ Audio.prototype._handleStreamID = function(streamID, callback) {
 }
 
 Audio.prototype.queue = function(buff, callback) {
+  var self = this;
+
   if (!buff) {
     if (callback) {
       callback(new Error("Must pass valid buffer to queue."));
     }
     return;
   }
-  console.log('telling it to queue...', buff.length);
-  var streamID = hw.audio_queue_buffer(this.MP3_XCS.pin, this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length);
-  console.log('stream id', streamID);
-  this._handleStreamID(streamID, callback);
+  if (!this.lock) {
+    var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+    self._handleStreamID(streamID, callback);
+  }
+  else {
+    self.spi.lock(function(err, lock) {
+      if (err) {
+        if (callback) {
+          callback(err);
+        }
 
-  return streamID;
+        return;
+      }
+      else {
+        self.lock = lock;
+
+        var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+        self._handleStreamID(streamID, callback);
+      }
+    });
+  }
 }
 
 Audio.prototype.pause = function(callback) {
@@ -476,8 +517,22 @@ Audio.prototype.pause = function(callback) {
     this.emit('error', err);
   }
 
-  if (callback) {
-    callback(err);
+  // If we have a lock on the spi bus
+  if (this.lock) {
+    // Release it
+    this.lock.release(function(err) {
+      // Call the callback if we have one
+      if (callback) {
+        callback(err);
+      }
+      return;
+    });
+  }
+  // If there is no lock, just call the callback
+  else {
+    if (callback) {
+      callback(err);
+    }
   }
 }
 
@@ -490,8 +545,22 @@ Audio.prototype.stop = function(callback) {
     this.emit('error', err);
   }
 
-  if (callback) {
-    callback(err);
+  // If we have a lock on the spi bus
+  if (this.lock) {
+    // Release it
+    this.lock.release(function(err) {
+      // Call the callback if we have one
+      if (callback) {
+        callback(err);
+      }
+      return;
+    });
+  }
+  // If there is no lock, just call the callback
+  else {
+    if (callback) {
+      callback(err);
+    }
   }
 }
 

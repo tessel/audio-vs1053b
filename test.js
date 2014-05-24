@@ -1,12 +1,10 @@
 var tessel = require('tessel');
 var fs = require('fs');
-var song = fs.readFileSync('/app/sample.mp3');
+var song = fs.readFileSync('/app/playback/sample.mp3');
 var audio = require('./').use(tessel.port['A']);
 var Readable = require('stream').Readable;
 var filename = process.argv[2] || 'audio-recording.ogg';
 var datas = [];
-
-console.log('length should be', song.length);
 
 audio.on('data', function weRecorded(data) {
   console.log('got this recording data!', data.length);;
@@ -97,34 +95,29 @@ function testQueue() {
 }
 
 function testPlayStream() {
-  var file = fs.createReadStream('/app/sample.mp3');
+  var file = fs.createReadStream('/app/playback/sample.mp3');
   file.pipe(audio.createPlayStream());
 }
 
 function testRecordStream() {
-  var Writable = require('stream').Writable;
-  var ws = Writable();
-  ws._write = function (chunk, enc, next) {
-      console.log("Write Stream Chunk: ", chunk);
-      next();
-  };
+  audio.createRecordStream().pipe(fs.createWriteStream('rec.ogg'));
 
-  audio.createRecordStream().pipe(ws);
-
-  // setTimeout(function() {
-  //   console.log('STOPPING');
-  //   audio.stopRecording();
-  // }, 2000);
+  setTimeout(function() {
+    console.log('STOPPING');
+    audio.stopRecording();
+  }, 2000);
 }
 
 
 audio.on('ready', function() {
   console.log("Ready to go!");
-  testRecordStream();
+  // testRecordStream();
   // testPlayStream();
   // testSwitchPlayRecord();
   // testSwitchRecordPlay();
   // testRecording();
+  // setInterval(testPlayback, 3000);
+  testPlayback();
   // testPlayback();
   // testQueue();
   
