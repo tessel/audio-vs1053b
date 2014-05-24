@@ -6,6 +6,8 @@ var Readable = require('stream').Readable;
 var filename = process.argv[2] || 'audio-recording.ogg';
 var datas = [];
 
+console.log('length should be', song.length);
+
 audio.on('data', function weRecorded(data) {
   console.log('got this recording data!', data.length);;
   datas.push(data);
@@ -95,28 +97,8 @@ function testQueue() {
 }
 
 function testPlayStream() {
-  var rs = new Readable;
-  var chunk = song.length/12;
-  var incr = Math.floor(song.length/chunk);
-  console.log('length', song.length, 'floor', Math.floor(song.length/chunk));
-
-  
-  for (var i = 0; i < incr; i++) {
-    var pos = chunk * i;
-    console.log('pos', pos);
-    rs.push(song.slice(pos, pos + chunk));
-
-  }
-
-  if (song.length%chunk) {
-    var pos = chunk * incr;
-    console.log('last', pos, 'to', song.length%chunk);
-    rs.push(song.slice(pos, pos + song.length%chunk));
-  }
-  // rs.push(song);
-  rs.push(null);
-
-  rs.pipe(audio.createPlayStream());
+  var file = fs.createReadStream('/app/sample.mp3');
+  file.pipe(audio.createPlayStream());
 }
 
 function testRecordStream() {
@@ -128,12 +110,17 @@ function testRecordStream() {
   };
 
   audio.createRecordStream().pipe(ws);
+
+  // setTimeout(function() {
+  //   console.log('STOPPING');
+  //   audio.stopRecording();
+  // }, 2000);
 }
 
 
 audio.on('ready', function() {
   console.log("Ready to go!");
-  // testRecordStream();
+  testRecordStream();
   // testPlayStream();
   // testSwitchPlayRecord();
   // testSwitchRecordPlay();
