@@ -154,17 +154,42 @@ Audio.prototype._failConnect = function(err, callback) {
 
 Audio.prototype.createPlayStream = function() {
   var audio = this;
-
   var playStream = new Writable;
+
+  // The Audio Module won't play chunks that are
+  // less than ~3425 bytes...
+  playStream.bufs = [];
+  playStream.bufferedLen = 0;
 
   playStream._write = function (chunk, enc, next) {
     var err;
-    var ret = audio.queue(chunk);
-    if (ret < 0) {
-      err = new Error("Unable to queue the streamed buffer.");
+    this.bufs.push(chunk);
+    this.bufferedLen += chunk.length;
+    // Check if this chunk is too small to be played solo
+    if (this.bufferedLen >= 10000) {
+      var audioData = Buffer.concat(this.bufs);
+      console.log(audioData);
+      this.bufs = []; this.bufferedLen = 0;
+
+      var ret = audio.queue(audioData);
+      if (ret < 0) {
+        err = new Error("Unable to queue the streamed buffer.");
+      }
     }
-    next();
+    next(err);
   };
+
+  playStream.on('finish', function flush() {
+    var audioData = Buffer.concat(this.bufs);
+    this.bufs = []; this.bufferedLen = 0;
+    if (audioData.length) {
+      var ret = audio.queue(audioData);
+      if (ret < 0) {
+        err = new Error("Unable to queue the streamed buffer.");
+      }
+    }
+  });
+
   return playStream;
 }
 
@@ -434,6 +459,8 @@ Audio.prototype.play = function(buff, callback) {
     // Save the lock reference so we can free it later
     self.lock = lock;
 
+    // Initialize SPI so it's set to the right settings
+    self.spi.initialize();
     // Send this buffer off to our shim to have it start playing
     var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
 
@@ -485,6 +512,10 @@ Audio.prototype.queue = function(buff, callback) {
     }
     return;
   }
+
+  // Initialize SPI to the correct settings
+  self.spi.initialize();
+
   if (!this.lock) {
     var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
     self._handleStreamID(streamID, callback);
@@ -595,6 +626,9 @@ Audio.prototype.startRecording = function(profile, callback) {
     self.emit('error', err);
     return;
   }
+
+  // Initialize SPI to the correct settings
+  self.spi.initialize();
 
   var pluginDir = __dirname + "/plugins/" + profile + ".img";
 
