@@ -24,14 +24,20 @@ var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
   // Start recording data for a second into a file
   audio.setInput('mic', function(err) {
     
+    var chunks = [];
+
+    audio.on('data', function(data) {
+      chunks.push(data);
+    });
+
     // Start the recording
     audio.startRecording(function(err) {
       // In one second
       setTimeout(function() {
         // Stop recording
-        audio.stopRecording(function(err, oggBuffer) {
+        audio.stopRecording(function(err) {
           // Write the buffer to a file
-          fs.writeFile("micdata", oggBuffer, function(err) {
+          fs.writeFile("micdata", Buffer.concat(chunks), function(err) {
             console.log("Wrote to a file");
           });
         })
@@ -48,21 +54,18 @@ var fs = require('fs');
 var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
   
   // Start recording data for a second into a file
-  audio.setInput('mic', function(err) {
+  audio.setInput('line-in', function(err) {
     // Open a stream to a file
     var file = fs.createWriteStream('lineInData.ogg');
     // Create a readable stream of incoming data
-    var soundData = audio.createReadStream();
+    var soundData = audio.createRecordStream();
     // Pipe data to the file
     soundData.pipe(file);
-  
-    // Enable sound input
-    audio.startRecording();
   });
 });
 
 ```
-3. Output audio on the headphone Jack
+3. Output audio on the headphone Jack (w/o streams)
 ```.js
 var tessel = require('tessel');
 var fs = require('fs');
@@ -74,6 +77,20 @@ var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
     var audioFile = fs.readFileSync('Oops... I did it again.mp3');
     // Play the file
     audio.play(audioFile);
+  });
+});
+
+```
+4. Output audio on the headphone Jack (with streams)
+```.js
+var tessel = require('tessel');
+var fs = require('fs');
+var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
+  
+  // Start recording data for a second into a file
+  audio.setOutput('headphone', function(err) {
+    // Open a file
+    fs.createReadStream('rayman.ogg').pipe(audio.createPlayStream());
   });
 });
 
@@ -152,8 +169,6 @@ audio.on('stopRecording', function() {...} );
 // A buffer is beginning to be played
 // Returns a streamID
 audio.on('play', function() {...} );
-
-audio.on('played', function(streamID) {...})
 
 // Playback was paused
 audio.on('pause', function() {...} );
