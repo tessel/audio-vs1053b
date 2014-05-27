@@ -1,9 +1,10 @@
 var tessel = require('tessel');
 var fs = require('fs');
-var song = fs.readFileSync('/app/playback/rayman.ogg');
+var song = fs.readFileSync('/app/playback/sample.mp3');
 var audio = require('./').use(tessel.port['A']);
 var Readable = require('stream').Readable;
 var filename = process.argv[2] || 'audio-recording.ogg';
+console.log("Saving to filename:", filename);
 var datas = [];
 
 audio.on('data', function weRecorded(data) {
@@ -24,8 +25,24 @@ audio.on('stopRecording', function() {
   console.log('stopped recording!');
   var rec = Buffer.concat(datas);
   console.log('playing len', rec.length);
-  process.sendfile(filename, rec);
+  // process.sendfile(filename, rec);
+  // fs.writeFileSync(filename, rec);
+  // fs.createReadStream(filename).pipe(audio.createPlayStream());
 });
+
+function testInputs() {
+  audio.setOutput('lineOut', function(err) {
+    console.log('set to line in', err);
+    audio.play(song, function(err) {
+      console.log('finished playing song', err);
+      console.log('finished with line in.');
+      audio.setOutput('headphones', function(err) {
+        console.log('set to phones', err);
+        audio.play(song);
+      });
+    });
+  });
+}
 
 
 function testSwitchPlayRecord() {
@@ -56,17 +73,19 @@ function testSwitchRecordPlay() {
 }
 
 function testRecording() {
-  audio.startRecording('hifi-voice', function() {
-    setTimeout(function stopRecording() {
-      audio.stopRecording(function stopped() {
-        console.log("Stop recording callback called...");
-      })
-    }, 4000);
-  });
+  // audio.setInput('lineIn', function(err) {
+    audio.startRecording('voice', function() {
+      setTimeout(function stopRecording() {
+        audio.stopRecording(function stopped() {
+          console.log("Stop recording callback called...");
+        })
+      }, 4000);
+    });
+  // });
 }
 
 function testPlayback() {
-  audio.play(song, function(err) {
+  var ret = audio.play(song, function(err) {
     if (err) {
       console.log("error playing song: ", err);
     }
@@ -77,12 +96,23 @@ function testPlayback() {
 }
 
 function testQueue() {
-  console.log('testing queue');
+  audio.queue(song);
+  audio.queue(song);
+  audio.queue(song);
+  audio.queue(song);
+}
+
+function testPlayStop() {
+  audio.on('play', audio.stop.bind(audio, undefined));
   audio.play(song);
-  audio.queue(song);
-  audio.queue(song);
-  audio.queue(song);
-  audio.queue(song);
+}
+
+function testPlayQueue() {
+  audio.play(song);//, function () {
+    audio.queue(song);
+    audio.queue(song);
+    audio.queue(song);
+    audio.queue(song);
 }
 
 function testPlayStream() {
@@ -94,7 +124,7 @@ function testRecordStream() {
   audio.createRecordStream().pipe(fs.createWriteStream('rec.ogg'));
 
   setTimeout(function() {
-    console.log('STOPPING');
+    console.log('STOPPING DIS SHIT');
     audio.stopRecording();
   }, 2000);
 }
@@ -107,13 +137,11 @@ function testPlayStreamSmallChunks(chunkSize) {
 
   for (var i = 0; i < incr; i++) {
     var pos = chunk * i;
-    // console.log('pos', pos, pos+chunk);
     rs.push(song.slice(pos, pos + chunk));
   }
 
   if (song.length%chunk) {
     var pos = chunk * incr;
-    // console.log('last', pos, 'to', song.length%chunk);
     rs.push(song.slice(pos, pos + song.length%chunk));
   }
 
@@ -127,14 +155,16 @@ function testPlayStreamSmallChunks(chunkSize) {
 audio.on('ready', function() {
   console.log("Ready to go!");
   audio.setVolume(20, 20, function(e) {
-    testPlayStreamSmallChunks(5000);
+    testInputs();
+    // testPlayStreamSmallChunks(5000);
     // testRecordStream();
     // testPlayStream();
     // testSwitchPlayRecord();
     // testSwitchRecordPlay();
-    // testRecording();
-    // setInterval(testPlayback, 3000);
-    // testPlayback();
     // testQueue();
+    // testPlayQueue();
+    // testRecording();
+    // testPlayStop();
+    // testPlayback();
   });
 });

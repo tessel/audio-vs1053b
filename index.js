@@ -31,8 +31,11 @@ var GPIO_DIR_ADDR = 0xC017
   , GPIO_READ_ADDR = 0xC018
   , GPIO_SET_ADDR = 0xC019;
 
+var inputReg = 0x05,
+    outputReg = 0x07;
+
 var _audioCallbacks = {};
-var _fillBuff = new Buffer(5000);
+var _fillBuff = new Buffer(15000);
 _fillBuff.fill(0);
 
 
@@ -109,7 +112,6 @@ Audio.prototype.initialize = function(callback) {
 Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
 
   var self = this;
-
   if (self.lock) {
     self.lock.release(function(err) {
       if (err) {
@@ -133,7 +135,7 @@ Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
           // Call the callback
           callback(err);
 
-          self.emit('finish', err);
+          self.emit('end', err);
         }
       }
     });
@@ -404,12 +406,11 @@ Audio.prototype.setInput = function(input, callback) {
   else {
     this.input = input;
 
-    var bit = (input == 'mic' ? 1 : 0);
-
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
       else {
-        this._setChipGpio(gpio & (bit << 5), callback);
+        var newReg = (input === "mic" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
+        this._setChipGpio(newReg, callback);
       }
     }.bind(this));
   }
@@ -421,17 +422,25 @@ Audio.prototype.setOutput = function(output, callback) {
   }
   else {
     this.output = output;
-
-    var bit = (output == 'lineOut' ? 1 : 0);
-
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
       else {
-        this._setChipGpio(gpio & (bit << 7), callback);
+        // Check if it's input or output and set the 7th bit of the gpio reg accordingly
+        console.log('was ', gpio, 'setting to', (output === 'lineOut' ? (gpio | (1 << outputReg)) : (gpio & ~(1 << outputReg))))
+        var newReg = (output === 'lineOut' ? (gpio | (1 << outputReg)) : (gpio & ~(1 << outputReg)));
+        this._setChipGpio(newReg, callback);
       }
     }.bind(this));
   }
 }
+
+function Track(length, id, callback) {
+  this._buflen = length;
+  this.id = id;
+  this.callback = callback;
+}
+
+util.inherits(Track, events.EventEmitter);
 
 Audio.prototype.play = function(buff, callback) {
   // Check if no buffer was passed in but a callback was
@@ -448,6 +457,7 @@ Audio.prototype.play = function(buff, callback) {
   }
 
   self.spi.lock(function(err, lock) {
+    console.log('got play spi lock');
     if (err) {
       if (callback) {
         callback(err);
@@ -458,47 +468,48 @@ Audio.prototype.play = function(buff, callback) {
 
     // Save the lock reference so we can free it later
     self.lock = lock;
-
     // Initialize SPI so it's set to the right settings
     self.spi.initialize();
     // Send this buffer off to our shim to have it start playing
     var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
 
-    self._handleStreamID(streamID, callback);
+    var track = new Track(buff.length, streamID, callback);
 
-    self.emit('play', streamID);
+    self._handleTrack(track);
+
+    self.emit('play', track);
   });
 }
 
-Audio.prototype._handleStreamID = function(streamID, callback) {
+Audio.prototype._handleTrack = function(track) {
   // If stream id is less than zero, an error occured
-  if (streamID < 0) {
+  if (track.id < 0) {
     var err;
 
-    if (streamID == -1) {
+    if (track.id == -1) {
       err = new Error("Attempt to move to an invalid state.");
     }
-    else if (streamID == -2) {
+    else if (track.id == -2) {
       err = new Error("Audio playback requires one GPIO Interrupt and none are available.");
     }
-    else if (streamID == -3) {
+    else if (track.id == -3) {
       err = new Error("Unable to allocate memory required for transfer...");
     }
 
-    if (callback) {
-      callback(err);
+    if (track.callback) {
+      track.callback(err);
     }
 
-    this.emit('error', err, streamID);
+    this.emit('error', err, track);
 
     return;
   }
   // No error occured
   else {
     // If a callback was provided
-    if (callback) {
+    if (track.callback) {
       // Add it to the callbacks dict
-      _audioCallbacks[streamID] = callback;
+      _audioCallbacks[track.id] = track.callback;
     }
   }
 }
@@ -516,27 +527,23 @@ Audio.prototype.queue = function(buff, callback) {
   // Initialize SPI to the correct settings
   self.spi.initialize();
 
-  if (!this.lock) {
-    var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
-    self._handleStreamID(streamID, callback);
-  }
-  else {
-    self.spi.lock(function(err, lock) {
-      if (err) {
-        if (callback) {
-          callback(err);
-        }
-
-        return;
+  self.spi.lock(function(err, lock) {
+    console.log('got queue lock');
+    if (err) {
+      if (callback) {
+        callback(err);
       }
-      else {
-        self.lock = lock;
 
-        var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
-        self._handleStreamID(streamID, callback);
-      }
-    });
-  }
+      return;
+    }
+    else {
+      self.lock = lock;
+
+      var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+      var track = new Track(buf_len, streamID, callback);
+      self._handleTrack(track);
+    }
+  });
 }
 
 Audio.prototype.pause = function(callback) {
@@ -572,7 +579,7 @@ Audio.prototype.stop = function(callback) {
   var ret = hw.audio_stop_buffer();
 
   if (ret < 0) {
-    err = new Error("You must stopRecording before calling stop.");
+    err = new Error("Not in a valid state to call stop.");
     this.emit('error', err);
   }
 

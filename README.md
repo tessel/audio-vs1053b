@@ -167,7 +167,6 @@ audio.on('data', function(audioBuff) {...} );
 audio.on('stopRecording', function() {...} );
 
 // A buffer is beginning to be played
-// Returns a streamID
 audio.on('play', function() {...} );
 
 // Playback was paused
@@ -177,6 +176,6 @@ audio.on('pause', function() {...} );
 audio.on('stop', function() {...} );
 
 // The buffer finished playing
-audio.on('finish', function(err) {...})
+audio.on('end', function(err) {...})
 
 ```
