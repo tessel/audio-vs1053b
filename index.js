@@ -196,27 +196,20 @@ Audio.prototype.createPlayStream = function() {
 }
 
 // Creates a Readable record stream
-Audio.prototype.createRecordStream = function() {
+Audio.prototype.createRecordStream = function(profile) {
   var audio = this;
 
   var recordStream = new Readable;
 
-  audio.on('data', recordStream.push.bind(recordStream));
+  var pusher = recordStream.push.bind(recordStream);
 
-  audio.on('audio_recording_complete', recordStream.push.bind(recordStream));
+  audio.on('data', pusher);
 
-  recordStream._read = function() {
-    // If we're not recording already
-    if (hw.audio_get_state() != 3) {
-      audio.startRecording();
-    }
-  }
+  process.once('audio_recording_complete', recordStream.push.bind(recordStream));
 
-  recordStream.once('finish', function() {
-    if (hw.audio_get_state() == 3) {
-      audio.stopRecording();
-    }
-  });
+  recordStream._write = function() {};
+
+  audio.startRecording(profile);
 
   return recordStream;
 }

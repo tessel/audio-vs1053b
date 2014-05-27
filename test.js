@@ -2,7 +2,7 @@ var tessel = require('tessel');
 var fs = require('fs');
 var song = fs.readFileSync('/app/playback/sample.mp3');
 var audio = require('./').use(tessel.port['A']);
-var Readable = require('stream').Readable;
+var stream = require('stream');
 var filename = process.argv[2] || 'audio-recording.ogg';
 console.log("Saving to filename:", filename);
 var datas = [];
@@ -25,7 +25,7 @@ audio.on('stopRecording', function() {
   console.log('stopped recording!');
   var rec = Buffer.concat(datas);
   console.log('playing len', rec.length);
-  process.sendfile(filename, rec);
+  // process.sendfile(filename, rec);
   // fs.writeFileSync(filename, rec);
   // fs.createReadStream(filename).pipe(audio.createPlayStream());
 });
@@ -131,18 +131,23 @@ function testPlayStream() {
 }
 
 function testRecordStream() {
-  audio.createRecordStream().pipe(fs.createWriteStream('rec.ogg'));
+  var rec = audio.createRecordStream("voice");
+  var file = fs.createWriteStream('rec.ogg');
+  rec.pipe(file);
 
   setTimeout(function() {
-    audio.stopRecording();
-  }, 2000);
+    audio.stopRecording(function() {
+      console.log("Stop recording callback after stream called...");
+      rec.unpipe(file);
+    });
+  }, 4000);
 }
 
 function testPlayStreamSmallChunks(chunkSize) {
   var chunk = chunkSize;
   var incr = Math.floor(song.length/chunk);
   console.log('length', song.length, 'floor', Math.floor(song.length/chunk));
-  var rs = new Readable;
+  var rs = new stream.Readable;
 
   for (var i = 0; i < incr; i++) {
     var pos = chunk * i;
@@ -167,13 +172,13 @@ audio.on('ready', function() {
     // testOutputs();
     // testInputs();
     // testPlayStreamSmallChunks(5000);
-    // testRecordStream();
+    testRecordStream();
     // testPlayStream();
     // testSwitchPlayRecord();
     // testSwitchRecordPlay();
     // testQueue();
     // testPlayQueue();
-    testRecording();
+    // testRecording();
     // testPlayStop();
     // testPlayback();
   });
