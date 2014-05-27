@@ -25,10 +25,20 @@ audio.on('stopRecording', function() {
   console.log('stopped recording!');
   var rec = Buffer.concat(datas);
   console.log('playing len', rec.length);
-  // process.sendfile(filename, rec);
-  // fs.writeFileSync(filename, rec);
-  // fs.createReadStream(filename).pipe(audio.createPlayStream());
+  process.sendfile(filename, rec);
+  fs.writeFileSync(filename, rec);
+  fs.createReadStream(filename).pipe(audio.createPlayStream());
 });
+
+function testOutputs() {
+  audio.setInput('lineIn', function(err) {
+    console.log('line in is set', err);
+    audio.startRecording('voice', function(err) {
+      console.log('started recording');
+      setTimeout(audio.stopRecording.bind(audio), 12000);
+    });
+  });
+}
 
 function testInputs() {
   audio.setOutput('lineOut', function(err) {
@@ -155,7 +165,8 @@ function testPlayStreamSmallChunks(chunkSize) {
 audio.on('ready', function() {
   console.log("Ready to go!");
   audio.setVolume(20, 20, function(e) {
-    testInputs();
+    testOutputs();
+    // testInputs();
     // testPlayStreamSmallChunks(5000);
     // testRecordStream();
     // testPlayStream();

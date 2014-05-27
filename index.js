@@ -409,7 +409,7 @@ Audio.prototype.setInput = function(input, callback) {
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
       else {
-        var newReg = (input === "mic" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
+        var newReg = (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
         this._setChipGpio(newReg, callback);
       }
     }.bind(this));
