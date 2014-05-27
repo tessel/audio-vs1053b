@@ -26,8 +26,8 @@ audio.on('stopRecording', function() {
   var rec = Buffer.concat(datas);
   console.log('playing len', rec.length);
   process.sendfile(filename, rec);
-  fs.writeFileSync(filename, rec);
-  fs.createReadStream(filename).pipe(audio.createPlayStream());
+  // fs.writeFileSync(filename, rec);
+  // fs.createReadStream(filename).pipe(audio.createPlayStream());
 });
 
 function testOutputs() {
@@ -83,15 +83,15 @@ function testSwitchRecordPlay() {
 }
 
 function testRecording() {
-  // audio.setInput('lineIn', function(err) {
+  audio.setInput('mic', function() {
     audio.startRecording('voice', function() {
       setTimeout(function stopRecording() {
         audio.stopRecording(function stopped() {
           console.log("Stop recording callback called...");
         })
       }, 4000);
-    });
-  // });
+    });    
+  })
 }
 
 function testPlayback() {
@@ -118,11 +118,11 @@ function testPlayStop() {
 }
 
 function testPlayQueue() {
-  audio.play(song);//, function () {
-    audio.queue(song);
-    audio.queue(song);
-    audio.queue(song);
-    audio.queue(song);
+  audio.play(song); 
+  audio.queue(song);
+  audio.queue(song);
+  audio.queue(song);
+  audio.queue(song);
 }
 
 function testPlayStream() {
@@ -134,7 +134,6 @@ function testRecordStream() {
   audio.createRecordStream().pipe(fs.createWriteStream('rec.ogg'));
 
   setTimeout(function() {
-    console.log('STOPPING DIS SHIT');
     audio.stopRecording();
   }, 2000);
 }
@@ -165,7 +164,7 @@ function testPlayStreamSmallChunks(chunkSize) {
 audio.on('ready', function() {
   console.log("Ready to go!");
   audio.setVolume(20, 20, function(e) {
-    testOutputs();
+    // testOutputs();
     // testInputs();
     // testPlayStreamSmallChunks(5000);
     // testRecordStream();
@@ -174,7 +173,7 @@ audio.on('ready', function() {
     // testSwitchRecordPlay();
     // testQueue();
     // testPlayQueue();
-    // testRecording();
+    testRecording();
     // testPlayStop();
     // testPlayback();
   });

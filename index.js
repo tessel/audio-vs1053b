@@ -409,6 +409,7 @@ Audio.prototype.setInput = function(input, callback) {
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
       else {
+        console.log('was ', gpio, 'setting to', (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg))));
         var newReg = (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
         this._setChipGpio(newReg, callback);
       }
@@ -426,7 +427,6 @@ Audio.prototype.setOutput = function(output, callback) {
       if (err) { return callback && callback(err); }
       else {
         // Check if it's input or output and set the 7th bit of the gpio reg accordingly
-        console.log('was ', gpio, 'setting to', (output === 'lineOut' ? (gpio | (1 << outputReg)) : (gpio & ~(1 << outputReg))))
         var newReg = (output === 'lineOut' ? (gpio | (1 << outputReg)) : (gpio & ~(1 << outputReg)));
         this._setChipGpio(newReg, callback);
       }
@@ -639,8 +639,7 @@ Audio.prototype.startRecording = function(profile, callback) {
 
   var pluginDir = __dirname + "/plugins/" + profile + ".img";
 
-  var micInput = this.input === "mic" ? 1 : 0;
-  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff, micInput);
+  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff);
 
   if (ret < 0) {
     var err; 
