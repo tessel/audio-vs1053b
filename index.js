@@ -387,13 +387,34 @@ Audio.prototype.setDefaultIO = function(callback) {
 }
 
 Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, callback) {
-  if (rightChannelDecibels === undefined) { //TODO What if they set one channel but also had a callback?
+
+  // If no volume was provided
+  if (leftChannelDecibels === undefined) {
+    // Just callback
+    if (callback) {
+      callback();
+    }
+
+    // and return
+    return;
+  }
+  // If the user passed in one decibel level and a callback
+  else if (typeof rightChannelDecibels === 'function' && !callback) {
+    // set the callback
+    callback = rightChannelDecibels;
+    // And make both channels the same
+    rightChannelDecibels = leftChannelDecibels;
+  }
+  // If the user only passed in a decibel level
+  else if (rightChannelDecibels === undefined && callback === undefined) { 
+    // Make both channels the same
     rightChannelDecibels = leftChannelDecibels;
   }
 
   // The units are in half decibels
   leftChannelDecibels = leftChannelDecibels/0.5;
   rightChannelDecibels = rightChannelDecibels/0.5
+  
   // Set VS10xx Volume Register
   this._writeSciRegister(SCI_VOL, leftChannelDecibels, rightChannelDecibels, callback);
 }

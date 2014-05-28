@@ -15,8 +15,8 @@ var audioFile = 'sample.mp3';
 // Wait for the module to connect
 audio.on('ready', function() {
   console.log("Audio module connected! Setting volume...");
-  // Set the volume (left channel, right channel) in decibels. Around 20 is good; smaller is louder.
-  audio.setVolume(20, 20, function(err) {
+  // Set the volume in decibels. Around 20 is good; smaller is louder.
+  audio.setVolume(20, function(err) {
     if (err) {
       return console.log(err);
     }
