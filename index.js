@@ -52,9 +52,9 @@ function Audio(hardware, callback) {
   });
 
   // Set our register select pins
-  this.MP3_XCS = hardware.digital[1].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
-  this.MP3_DCS = hardware.digital[2].output(true); //Data Chip Select / BSYNC Pin
-  this.MP3_DREQ = hardware.digital[3].input() //Data Request Pin: Player asks for more data
+  this.MP3_XCS = hardware.digital[0].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
+  this.MP3_DCS = hardware.digital[1].output(true); //Data Chip Select / BSYNC Pin
+  this.MP3_DREQ = hardware.digital[2].input() //Data Request Pin: Player asks for more data
 
   this.input = "";
   this.output = "";
@@ -170,7 +170,6 @@ Audio.prototype.createPlayStream = function() {
     // Check if this chunk is too small to be played solo
     if (this.bufferedLen >= 10000) {
       var audioData = Buffer.concat(this.bufs);
-      console.log(audioData);
       this.bufs = []; this.bufferedLen = 0;
 
       var ret = audio.queue(audioData);
@@ -402,7 +401,6 @@ Audio.prototype.setInput = function(input, callback) {
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
       else {
-        console.log('was ', gpio, 'setting to', (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg))));
         var newReg = (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
         this._setChipGpio(newReg, callback);
       }
@@ -450,7 +448,6 @@ Audio.prototype.play = function(buff, callback) {
   }
 
   self.spi.lock(function(err, lock) {
-    console.log('got play spi lock');
     if (err) {
       if (callback) {
         callback(err);
@@ -521,7 +518,6 @@ Audio.prototype.queue = function(buff, callback) {
   self.spi.initialize();
 
   self.spi.lock(function(err, lock) {
-    console.log('got queue lock');
     if (err) {
       if (callback) {
         callback(err);

@@ -25,7 +25,7 @@ audio.on('stopRecording', function() {
   console.log('stopped recording!');
   var rec = Buffer.concat(datas);
   console.log('playing len', rec.length);
-  // process.sendfile(filename, rec);
+  process.sendfile(filename, rec);
   // fs.writeFileSync(filename, rec);
   // fs.createReadStream(filename).pipe(audio.createPlayStream());
 });
@@ -172,13 +172,13 @@ audio.on('ready', function() {
     // testOutputs();
     // testInputs();
     // testPlayStreamSmallChunks(5000);
-    testRecordStream();
+    // testRecordStream();
     // testPlayStream();
     // testSwitchPlayRecord();
     // testSwitchRecordPlay();
     // testQueue();
     // testPlayQueue();
-    // testRecording();
+    testRecording();
     // testPlayStop();
     // testPlayback();
   });
