@@ -1,4 +1,11 @@
-// VS1053b module
+// Copyright 2014 Technical Machine, Inc. See the COPYRIGHT
+// file at the top-level directory of this distribution.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
 
 var fs = require('fs');
 var events = require('events');
@@ -63,7 +70,7 @@ function Audio(hardware, callback) {
   process.on('audio_playback_complete', this._handlePlaybackComplete.bind(this));
 
   // Waits for the audio data event which is recorded data being output from the C shim
-  process.on('audio_recording_data', this._handleRecordedData.bind(this)); 
+  process.on('audio_recording_data', this._handleRecordedData.bind(this));
 
   // Waits for final flushed buffer of a recording
   process.on('audio_recording_complete', this._handleRecordedData.bind(this));
@@ -82,14 +89,14 @@ Audio.prototype.initialize = function(callback) {
     if (err) { self._failConnect(err, callback); }
     else {
       // Make sure we can comm and have the right version
-      self._checkVersion(function(err) { 
+      self._checkVersion(function(err) {
         if (err) { self._failConnect(err, callback); }
         else {
           // Set the clock speed higher
           self._setClockSpeeds(function(err) {
             if (err) { self._failConnect(err, callback); }
             else {
-              // Enabke headphones and lineIn 
+              // Enabke headphones and lineIn
               self.setDefaultIO(function(err) {
                 if (err) { self._failConnect(err, callback); }
                 else {
@@ -99,7 +106,7 @@ Audio.prototype.initialize = function(callback) {
                   setImmediate(function() {
                     self.emit('ready');
                   });
-                } 
+                }
               });
             }
           });
@@ -230,7 +237,7 @@ Audio.prototype._softReset = function(callback) {
 }
 
 Audio.prototype._checkVersion = function(callback) {
-  this._readSciRegister16(SCI_STATUS, function(err, MP3Status) { 
+  this._readSciRegister16(SCI_STATUS, function(err, MP3Status) {
     if (err) { return callback && callback(err); }
     else if ((MP3Status >> 4) & 0x000F != 4){
       var err = new Error("Invalid version returned from module.");
@@ -245,13 +252,13 @@ Audio.prototype._checkVersion = function(callback) {
 
 Audio.prototype._setClockSpeeds = function(callback) {
   // Set multiplier to 3.0x
-  this._writeSciRegister16(SCI_CLOCKF, 0x6000, function(err) { 
+  this._writeSciRegister16(SCI_CLOCKF, 0x6000, function(err) {
     if (err) { return callback && callback(err); }
     else {
       this.spi.setClockSpeed(4000000);
       return callback && callback();
     }
-  }.bind(this)); 
+  }.bind(this));
 
 }
 
@@ -631,7 +638,7 @@ Audio.prototype.startRecording = function(profile, callback) {
   var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff);
 
   if (ret < 0) {
-    var err; 
+    var err;
 
     if (ret == -1) {
       err = new Error("Not able to allocate recording memory...");
@@ -654,7 +661,7 @@ Audio.prototype.startRecording = function(profile, callback) {
   else {
     if (callback) {
       callback();
-    } 
+    }
 
     this.emit('startRecording');
   }
