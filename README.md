@@ -54,7 +54,7 @@ audio.on('error', function(err) {
 
 ##Methods
 
-##### * `audio.setVolume(level, callback(err))` Set the output volume. Level is a Number from 0.0 to 1.0
+##### * `audio.setVolume(leftChannelDb, [rightChannelDb,] callback(err))` Set the output volume. Level is a Number from 0.0 to 1.0
 
 ##### * `audio.setInput(input, callback(err))` Set the input to either 'lineIn' or 'mic'. Defaults to 'lineIn'.
 
