@@ -1,181 +1,122 @@
-#Audio Module
+#Audio
+Driver for the audio-vs1053b Tessel audio module
 
 ##Installation
+```sh
+npm install audio-vs1053b
+```
 
-```npm install audio-vs1053b```
-
-## Limitations
+##Limitations
 The current version of the Tessel runtime is too slow to play audio files smoothly. That means we wrote a custom C shim that handles most of the playback and recording of data. There are several consequences of the C shim:
 
-* Any other modules that use SPI for communication will be blocked while the audio module is playing a buffer.
-* You can only have one audio module attached to Tessel at a time. 
+* Any other modules that use SPI for communication will be blocked while the Audio Module is playing a buffer.
+* You can only have one Audio Module attached to Tessel at a time.
 * Updates to the Audio Module driver must be released in both firmware and this npm repo.
 
-It sucks but we're expecting major runtime speed improvements to render the C shim uncessesary within the next couple months.
+It sucks but we're expecting major runtime speed improvements to render the C shim unnecessary within the next couple of months.
 
 
 ##Example
-1. Writing mic data to a file (w/out streams)
 ```.js
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+/*********************************************
+This Audio Module demo sets volume, then plays
+an audio file out over Headphones/Line out
+*********************************************/
+
 var tessel = require('tessel');
 var fs = require('fs');
-var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
-  
-  // Start recording data for a second into a file
-  audio.setInput('mic', function(err) {
-    
-    var chunks = [];
+var audio = require('../').use(tessel.port('a'));
 
-    audio.on('data', function(data) {
-      chunks.push(data);
+console.log('trying to connect...');
+audio.on('ready', function() {
+  console.log("Ready to go!");
+  audio.setVolume(20, 20, function(err) {
+    if (err) return console.log('err setting volume', err);
+    var song = fs.readFileSync('/app/sample.mp3');
+    audio.play(song, function(err) {
+      if (err) {
+        console.log("error playing song: ", err);
+      }
+      else {
+        console.log("Done playing the first song");
+      }
     });
-
-    // Start the recording
-    audio.startRecording(function(err) {
-      // In one second
-      setTimeout(function() {
-        // Stop recording
-        audio.stopRecording(function(err) {
-          // Write the buffer to a file
-          fs.writeFile("micdata", Buffer.concat(chunks), function(err) {
-            console.log("Wrote to a file");
-          });
-        })
-      }, 1000);
-    });
-  });
-});
-```
-
-2. Writing line-in to a file (w/ streams)
-```.js
-var tessel = require('tessel');
-var fs = require('fs');
-var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
-  
-  // Start recording data for a second into a file
-  audio.setInput('line-in', function(err) {
-    // Open a stream to a file
-    var file = fs.createWriteStream('lineInData.ogg');
-    // Create a readable stream of incoming data
-    var soundData = audio.createRecordStream();
-    // Pipe data to the file
-    soundData.pipe(file);
   });
 });
 
-```
-3. Output audio on the headphone Jack (w/o streams)
-```.js
-var tessel = require('tessel');
-var fs = require('fs');
-var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
-  
-  // Start recording data for a second into a file
-  audio.setOutput('headphone', function(err) {
-    // Open a file
-    var audioFile = fs.readFileSync('Oops... I did it again.mp3');
-    // Play the file
-    audio.play(audioFile);
-  });
+audio.on('error', function(err) {
+  console.log("Failed to connect", err);
 });
-
-```
-4. Output audio on the headphone Jack (with streams)
-```.js
-var tessel = require('tessel');
-var fs = require('fs');
-var audio = require('audio-vs1053b').use(tessel.port('a'), function(err) {
-  
-  // Start recording data for a second into a file
-  audio.setOutput('headphone', function(err) {
-    // Open a file
-    fs.createReadStream('rayman.ogg').pipe(audio.createPlayStream());
-  });
-});
-
 ```
 
-##API
+##Methods
 
-###Commands
+##### * `audio.setVolume(level, callback(err))` Set the output volume. Level is a Number from 0.0 to 1.0
 
-```.js
-// Set the output volume. Level is a Number from 0.0 to 1.0
-audio.setVolume( level, function(err) {...} );
+##### * `audio.setInput(input, callback(err))` Set the input to either 'lineIn' or 'mic'. Defaults to 'lineIn'.
 
-// Set the input to either 'lineIn' or 'mic'. Defaults to 'lineIn'.
-audio.setInput( input, function(err) {...} );
+##### * `audio.setOutput(output, callback(err))` Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.
 
-// Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.
-audio.setOutput(output, function(err) {...} );
+##### * `audio.startRecording([profile] callback(err))` Start recording sound from the input. (Receive data in the 'data' event) Callback called after recording initialized (not stopped). quality is an optional argument that can be 'voice', 'wideband-voice', 'wideband-stereo', 'hifi-voice', or 'stereo-music'. Default is 'hifi-voice'.
 
-// Start recording sound from the input. (Receive data in the 'data' event) Callback called after recording initialized (not stopped.)
-quality is an optional argument that can be 'voice', 'wideband-voice', 'wideband-stereo', 'hifi-voice', or 'stereo-music'. Default is 'hifi-voice'.
-audio.startRecording([profile] function(err) {...} );
+##### * `audio.stopRecording(callback(err))` Stop recording sound (note that may receive one more 'data' event before this completes when the buffer is flushed.)
 
-// Stop recording sound (note that may receive one more 'data' event before this completes when the buffer is flushed.)
-audio.stopRecording( function(err) {...} );
+##### * `audio.play([audioBuff], callback(err))` Play a buffer. If no buffer is passed in, the module will attempt to resume a buffer that was paused.
 
-// Play a buffer. If no buffer is passed in, the module
-// will attempt to resume a buffer that was paused.
-audio.play( [audioBuff], function(err) {...} );
+##### * `audio.pause(callback(err))` Pause the buffer
 
-// Pause the buffer
-audio.pause( function(err) {...} );
+##### * `audio.stop(callback(err))` Stop playing and flush the buffer
 
-// Stop playing and flush the buffer
-audio.stop( function(err) {...} );
+##### * `audio.createPlayStream()` Returns a stream that a buffer can be piped into to play audio
 
-// Returns a stream that a buffer can be piped into to play audio
-audio.createPlayStream();
+##### * `audio.createRecordStream()` Returns a readable stream of mic data
 
-// Returns a readable stream of mic data
-audio.createRecordStream()
+##### * `audio.availableRecordingProfiles()` Returns an array of available profiles
 
-// Returns an array of available profiles
-audio.availableRecordingProfiles();
 
-```
+##Events
 
-###Events
+##### * `audio.on('ready', callback())` The audio module is ready to use
 
-```.js
+##### * `audio.on('error', callback(err))` The audio module had an error on connection
 
-// The audio module is ready to use 
-audio.on( 'ready', function() {...} );
+##### * `audio.on('volume', callback(volume))` Volume was set
 
-// The audio module had an error on connection
-audio.on( 'error', function(err) {...} );
+##### * `audio.on('input', callback(input))` The input mode was set
 
-// Volume was set
-audio.on( 'volume', function(volume) {...} );
+##### * `audio.on('output', callback(output))` The output mode was set
 
-// The input mode was set
-audio.on('input', function(input) {...} );
+##### * `audio.on('startRecording', callback())` Started recording from the input
 
-// The output mode was set
-audio.on('output', function(output) {...} );
+##### * `audio.on('data', callback(audioBuff))` Received recorded data
 
-// Started recording from the input
-audio.on('startRecording', function() {...} );
+##### * `audio.on('stopRecording', callback())` Stopped recording on the input
 
-// Received recorded data
-audio.on('data', function(audioBuff) {...} );
+##### * `audio.on('play', callback())` A buffer is beginning to be played
 
-// Stopped recording on the input
-audio.on('stopRecording', function() {...} );
+##### * `audio.on('pause', callback())` Playback was paused
 
-// A buffer is beginning to be played
-audio.on('play', function() {...} );
+##### * `audio.on('stop', callback())` Playback was stopped
 
-// Playback was paused
-audio.on('pause', function() {...} );
+##### * `audio.on('end', callback(err)` The buffer finished playing
 
-// Playback was stopped
-audio.on('stop', function() {...} );
 
-// The buffer finished playing
-audio.on('end', function(err) {...})
+##Further Examples
+See the examples folder for code.
 
-```
+* audio-out-no-streams: Listen to audio without using streams.
+
+* record-sound: Record sound from the microphone without using streams.
+
+* stream-audio-out: Stream audio from a file to Headphones/Line out
+
+* stream-sound-to-file: Stream audio input from line in to a file.
+
+
+##License
+
+MIT
+APACHE

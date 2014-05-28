@@ -1,3 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+/*********************************************
+This Audio Module demo sets volume, then plays
+an audio file out over Headphones/Line out
+*********************************************/
+
 var tessel = require('tessel');
 var fs = require('fs');
 var audio = require('../').use(tessel.port('a'));
@@ -16,27 +24,9 @@ audio.on('ready', function() {
         console.log("Done playing the first song");
       }
     });
-    // setTimeout(function audioPause() {
-    //   console.log('pausing!');
-    //   audio.pause(function paused() {
-    //     setTimeout(function audioResume() {
-    //       audio.play();
-    //       console.log('started playing again');
-    //         setTimeout(function stopping() {
-    //           console.log('stopping');
-    //           audio.stop(function stopped() {
-    //             console.log('stopped!');
-    //           })
-    //         }, 1000);
-    //     }, 1000);
-    //   });
-
-    // }, 1000);
-  })
+  });
 });
 
 audio.on('error', function(err) {
   console.log("Failed to connect", err);
 });
-
-setInterval(function(){}, 20000);
