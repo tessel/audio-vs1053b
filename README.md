@@ -1,5 +1,5 @@
 #Audio
-Driver for the audio-vs1053b Tessel audio module
+Driver for the audio-vs1053b Tessel audio module ([VS1053B](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=2&cad=rja&uact=8&ved=0CC8QFjAB&url=http%3A%2F%2Fwww.vlsi.fi%2Ffileadmin%2Fdatasheets%2Fvlsi%2Fvs1053.pdf&ei=YXiFU4LrE8P3oATVwICADA&usg=AFQjCNF4G61PCB76XncJH2V8x9NE18ycqg&bvm=bv.67720277,d.cGU))
 
 ##Installation
 ```sh
