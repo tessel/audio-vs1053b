@@ -10,7 +10,7 @@
 var fs = require('fs');
 var events = require('events');
 var util = require('util');
-var hw = process.binding('hw')
+var hw = process.binding('hw');
 var Writable = require('stream').Writable;
 var Readable = require('stream').Readable;
 
@@ -387,7 +387,7 @@ Audio.prototype.setDefaultIO = function(callback) {
 }
 
 Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, callback) {
-  if (rightChannelDecibels === undefined) {
+  if (rightChannelDecibels === undefined) { //TODO What if they set one channel but also had a callback?
     rightChannelDecibels = leftChannelDecibels;
   }
 
