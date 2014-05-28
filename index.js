@@ -3,8 +3,9 @@
 var fs = require('fs');
 var events = require('events');
 var util = require('util');
-var async = require('async');
 var hw = process.binding('hw')
+var Writable = require('stream').Writable;
+var Readable = require('stream').Readable;
 
 // VS10xx SCI Registers
 var SCI_MODE = 0x00
@@ -24,10 +25,19 @@ var SCI_MODE = 0x00
   , SCI_AICTRL2 = 0x0E
   , SCI_AICTRL3 = 0x0F;
 
+var MODE_SM_RESET = 0x04;
 
 var GPIO_DIR_ADDR = 0xC017
   , GPIO_READ_ADDR = 0xC018
   , GPIO_SET_ADDR = 0xC019;
+
+var inputReg = 0x05,
+    outputReg = 0x07;
+
+var _audioCallbacks = {};
+var _fillBuff = new Buffer(15000);
+_fillBuff.fill(0);
+
 
 function use (hardware, next) {
   return new Audio(hardware, next);
@@ -42,12 +52,23 @@ function Audio(hardware, callback) {
   });
 
   // Set our register select pins
-  this.MP3_XCS = hardware.digital[1].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
-  this.MP3_DCS = hardware.digital[2].output(true); //Data Chip Select / BSYNC Pin
-  this.MP3_DREQ = hardware.digital[3].input() //Data Request Pin: Player asks for more data
+  this.MP3_XCS = hardware.digital[0].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
+  this.MP3_DCS = hardware.digital[1].output(true); //Data Chip Select / BSYNC Pin
+  this.MP3_DREQ = hardware.digital[2].input() //Data Request Pin: Player asks for more data
 
   this.input = "";
   this.output = "";
+
+  // Waits for the audio completion event which signifies that a buffer has finished streaming
+  process.on('audio_playback_complete', this._handlePlaybackComplete.bind(this));
+
+  // Waits for the audio data event which is recorded data being output from the C shim
+  process.on('audio_recording_data', this._handleRecordedData.bind(this)); 
+
+  // Waits for final flushed buffer of a recording
+  process.on('audio_recording_complete', this._handleRecordedData.bind(this));
+
+  // Initialize the module
   this.initialize(callback);
 }
 
@@ -88,6 +109,43 @@ Audio.prototype.initialize = function(callback) {
   });
 }
 
+Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
+
+  var self = this;
+  if (self.lock) {
+    self.lock.release(function(err) {
+      if (err) {
+        self.emit('error', err);
+        return
+      }
+      else {
+        // Get the callback if one was saved
+        var callback = _audioCallbacks[completedStream];
+
+        // If it exists
+        if (callback) {
+          // Remove it from our datastructure
+          delete _audioCallbacks[completedStream];
+
+          var err;
+          // Generate an error message if there was an error
+          if (errBool) {
+            err = new Error("Error sending buffer over SPI");
+          }
+          // Call the callback
+          callback(err);
+
+          self.emit('end', err);
+        }
+      }
+    });
+  }
+}
+
+Audio.prototype._handleRecordedData = function(length) {
+  this.emit('data', _fillBuff.slice(0, length));
+}
+
 Audio.prototype._failConnect = function(err, callback) {
   setImmediate(function() {
     this.emit('error', err);
@@ -96,11 +154,71 @@ Audio.prototype._failConnect = function(err, callback) {
   return callback && callback(err);
 }
 
+Audio.prototype.createPlayStream = function() {
+  var audio = this;
+  var playStream = new Writable;
+
+  // The Audio Module won't play chunks that are
+  // less than ~3425 bytes...
+  playStream.bufs = [];
+  playStream.bufferedLen = 0;
+
+  playStream._write = function (chunk, enc, next) {
+    var err;
+    this.bufs.push(chunk);
+    this.bufferedLen += chunk.length;
+    // Check if this chunk is too small to be played solo
+    if (this.bufferedLen >= 10000) {
+      var audioData = Buffer.concat(this.bufs);
+      this.bufs = []; this.bufferedLen = 0;
+
+      var ret = audio.queue(audioData);
+      if (ret < 0) {
+        err = new Error("Unable to queue the streamed buffer.");
+      }
+    }
+    next(err);
+  };
+
+  playStream.on('finish', function flush() {
+    var audioData = Buffer.concat(this.bufs);
+    this.bufs = []; this.bufferedLen = 0;
+    if (audioData.length) {
+      var ret = audio.queue(audioData);
+      if (ret < 0) {
+        err = new Error("Unable to queue the streamed buffer.");
+      }
+    }
+  });
+
+  return playStream;
+}
+
+// Creates a Readable record stream
+Audio.prototype.createRecordStream = function(profile) {
+  var audio = this;
+
+  var recordStream = new Readable;
+
+  var pusher = recordStream.push.bind(recordStream);
+
+  audio.on('data', pusher);
+
+  process.once('audio_recording_complete', recordStream.push.bind(recordStream));
+
+  recordStream._write = function() {};
+
+  audio.startRecording(profile);
+
+  return recordStream;
+}
+
+
 Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
     if (err) { return callback && callback(err); }
     else {
-      this._writeSciRegister16(SCI_MODE, mode | 2, function(err) {
+      this._writeSciRegister16(SCI_MODE, mode | MODE_SM_RESET, function(err) {
         if (err) { return callback && callback(err); }
         else {
           while (!this.MP3_DREQ);
@@ -115,6 +233,8 @@ Audio.prototype._checkVersion = function(callback) {
   this._readSciRegister16(SCI_STATUS, function(err, MP3Status) { 
     if (err) { return callback && callback(err); }
     else if ((MP3Status >> 4) & 0x000F != 4){
+      var err = new Error("Invalid version returned from module.");
+
       return callback && callback(new Error("Invalid version returned from module."));
     }
     else {
@@ -155,7 +275,6 @@ Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
   this.MP3_XCS.low(); //Select control
 
   //SCI consists of instruction byte, address byte, and 16-bit data word.
-  // TODO: Error handling
   this._SPItransferByte(0x03, function(err) {
     this._SPItransferByte(addressbyte, function(err) {
       this._SPItransferByte(0xFF, function(err, response1) {
@@ -245,7 +364,7 @@ Audio.prototype.setDefaultIO = function(callback) {
   self._enableAudioOutput(function(err) {
     if (err) { self._failConnect(err, callback); }
     else {
-      self.setInput('microphone', function(err) {
+      self.setInput('mic', function(err) {
         if (err) { self._failConnect(err, callback); }
         else {
           self.setOutput('headphones', function(err) {
@@ -273,18 +392,17 @@ Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, 
 }
 
 Audio.prototype.setInput = function(input, callback) {
-  if (input != 'lineIn' && input != 'microphone') {
+  if (input != 'lineIn' && input != 'mic') {
     return callback && callback(new Error("Invalid input requested..."));
   }
   else {
     this.input = input;
 
-    var bit = (input == 'microphone' ? 1 : 0);
-
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
       else {
-        this._setChipGpio(gpio & (bit << 5), callback);
+        var newReg = (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
+        this._setChipGpio(newReg, callback);
       }
     }.bind(this));
   }
@@ -296,47 +414,278 @@ Audio.prototype.setOutput = function(output, callback) {
   }
   else {
     this.output = output;
-
-    var bit = (output == 'lineOut' ? 1 : 0);
-
     this._getChipGpio(function(err, gpio) {
       if (err) { return callback && callback(err); }
       else {
-        this._setChipGpio(gpio & (bit << 7), callback);
+        // Check if it's input or output and set the 7th bit of the gpio reg accordingly
+        var newReg = (output === 'lineOut' ? (gpio | (1 << outputReg)) : (gpio & ~(1 << outputReg)));
+        this._setChipGpio(newReg, callback);
       }
     }.bind(this));
   }
 }
 
-Audio.prototype.play = function(buff, callback) {
-  console.log('Loading mp3');
-
-  console.log('chunking', buff.length, 'bytes.');
-  console.log('ret: ', hw.audio_play_buffer(this.MP3_DCS.pin, this.MP3_DREQ.pin, buff, buff.length));
-
-
-  // var len = buff.length;
-  // var chunks = [], clen =  64;
-  // var p = 0, i = 0;
-  // while (p < len) {
-  //   chunks[i] = buff.slice(p, p + clen);
-  //   i = i + 1;
-  //   p = p + clen;
-  // }
-
-  // console.log('done chunking:', chunks.length, 'chunks. Playing song...');
-
-  // this.MP3_DCS.low();
-  // async.eachSeries(
-  //   chunks, 
-  //   function playChunk(chunk, callback) {
-  //     while(!this.MP3_DREQ.read()){};
-  //     this.spi.transfer(chunk, callback);
-  //   }.bind(this),
-  //   function playComplete(err) {
-  //     this.MP3_DCS.high();
-  //     callback && callback(err);
-  //   }.bind(this)
-  // );
+function Track(length, id, callback) {
+  this._buflen = length;
+  this.id = id;
+  this.callback = callback;
 }
+
+util.inherits(Track, events.EventEmitter);
+
+Audio.prototype.play = function(buff, callback) {
+  // Check if no buffer was passed in but a callback was
+  // (the user would like to resume playback)
+  var self = this;
+
+  if (!callback && typeof buff == "function") {
+    callback = buff;
+    buff = new Buffer(0);
+  }
+  // Check if there was no buffer or callback passed in
+  else if (!buff && !callback) {
+    buff = new Buffer(0);
+  }
+
+  self.spi.lock(function(err, lock) {
+    if (err) {
+      if (callback) {
+        callback(err);
+      }
+
+      return;
+    }
+
+    // Save the lock reference so we can free it later
+    self.lock = lock;
+    // Initialize SPI so it's set to the right settings
+    self.spi.initialize();
+    // Send this buffer off to our shim to have it start playing
+    var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+
+    var track = new Track(buff.length, streamID, callback);
+
+    self._handleTrack(track);
+
+    self.emit('play', track);
+  });
+}
+
+Audio.prototype._handleTrack = function(track) {
+  // If stream id is less than zero, an error occured
+  if (track.id < 0) {
+    var err;
+
+    if (track.id == -1) {
+      err = new Error("Attempt to move to an invalid state.");
+    }
+    else if (track.id == -2) {
+      err = new Error("Audio playback requires one GPIO Interrupt and none are available.");
+    }
+    else if (track.id == -3) {
+      err = new Error("Unable to allocate memory required for transfer...");
+    }
+
+    if (track.callback) {
+      track.callback(err);
+    }
+
+    this.emit('error', err, track);
+
+    return;
+  }
+  // No error occured
+  else {
+    // If a callback was provided
+    if (track.callback) {
+      // Add it to the callbacks dict
+      _audioCallbacks[track.id] = track.callback;
+    }
+  }
+}
+
+Audio.prototype.queue = function(buff, callback) {
+  var self = this;
+
+  if (!buff) {
+    if (callback) {
+      callback(new Error("Must pass valid buffer to queue."));
+    }
+    return;
+  }
+
+  // Initialize SPI to the correct settings
+  self.spi.initialize();
+
+  self.spi.lock(function(err, lock) {
+    if (err) {
+      if (callback) {
+        callback(err);
+      }
+
+      return;
+    }
+    else {
+      self.lock = lock;
+
+      var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+      var track = new Track(buf_len, streamID, callback);
+      self._handleTrack(track);
+    }
+  });
+}
+
+Audio.prototype.pause = function(callback) {
+  var err;
+  var ret = hw.audio_pause_buffer();
+
+  if (ret < 0) {
+    err = new Error("A buffer is not being played.");
+    this.emit('error', err);
+  }
+
+  // If we have a lock on the spi bus
+  if (this.lock) {
+    // Release it
+    this.lock.release(function(err) {
+      // Call the callback if we have one
+      if (callback) {
+        callback(err);
+      }
+      return;
+    });
+  }
+  // If there is no lock, just call the callback
+  else {
+    if (callback) {
+      callback(err);
+    }
+  }
+}
+
+Audio.prototype.stop = function(callback) {
+  var err;
+  var ret = hw.audio_stop_buffer();
+
+  if (ret < 0) {
+    err = new Error("Not in a valid state to call stop.");
+    this.emit('error', err);
+  }
+
+  // If we have a lock on the spi bus
+  if (this.lock) {
+    // Release it
+    this.lock.release(function(err) {
+      // Call the callback if we have one
+      if (callback) {
+        callback(err);
+      }
+      return;
+    });
+  }
+  // If there is no lock, just call the callback
+  else {
+    if (callback) {
+      callback(err);
+    }
+  }
+}
+
+Audio.prototype.availableRecordingProfiles = function() {
+  return [
+          'voice',
+          'wideband-voice',
+          'wideband-stereo',
+          'hifi-voice',
+          'stereo-music'
+          ];
+}
+
+
+
+Audio.prototype.startRecording = function(profile, callback) {
+  var self = this;
+
+  if (!callback && typeof profile == "function") {
+    callback = profile;
+    profile = "hifi-voice";
+  }
+  else if (!profile && !callback) {
+    profile = "hifi-voice";
+  }
+
+  if (self.availableRecordingProfiles().indexOf(profile) == -1) {
+    var err = new Error("Invalid profile name. See audio.availableRecordingProfiles()");
+    if (callback) {
+      callback(err);
+    }
+    self.emit('error', err);
+    return;
+  }
+
+  // Initialize SPI to the correct settings
+  self.spi.initialize();
+
+  var pluginDir = __dirname + "/plugins/" + profile + ".img";
+
+  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff);
+
+  if (ret < 0) {
+    var err; 
+
+    if (ret == -1) {
+      err = new Error("Not able to allocate recording memory...");
+    }
+    else if (ret == -2) {
+      err = new Error("Invalid plugin file.");
+    }
+    else if (ret == -3) {
+      err = new Error("Module must be in an idle state to start recording.");
+    }
+    if (callback) {
+      callback(err);
+    }
+
+    this.emit('error', err);
+
+    return;
+  }
+
+  else {
+    if (callback) {
+      callback();
+    } 
+
+    this.emit('startRecording');
+  }
+}
+
+
+Audio.prototype.stopRecording = function(callback) {
+  var self = this;
+
+  process.once('audio_recording_complete', function recStopped(length) {
+    // If a callback was provided, return it
+    if (callback) {
+      callback();
+    }
+    // Stop recording
+    self.emit('stopRecording');
+  });
+
+  var ret = hw.audio_stop_recording();
+
+  if (ret < 0) {
+    var err = new Error("Not in valid state to stop recording.");
+
+    if (callback) {
+      callback(err);
+    }
+
+    this.emit('error', err);
+
+    return;
+  }
+}
+
 exports.use = use;

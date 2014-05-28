@@ -8,11 +8,8 @@
   },
   "hardware": {},
   "author": "",
-  "license": "BSD-2-Clause",
-  "dependencies": {
-    "async": "*"
-  },
   "devDependencies": {
     "tinytap": "~0.0.2"
-  }
+  },
+  "license": "BSD-2-Clause"
 }
