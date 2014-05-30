@@ -1,37 +1,29 @@
 var tessel = require('tessel');
 var fs = require('fs');
-// var song = fs.readFileSync('/app/playback/sample.mp3');
+var song = fs.readFileSync('/app/sample.mp3');
 var audio = require('./').use(tessel.port['A']);
 var stream = require('stream');
-var filename = process.argv[2] || 'audio-recording.ogg';
+var filename = 'ogg3.ogg';
 console.log("Saving to filename:", filename);
 var datas = [];
 
 audio.on('data', function weRecorded(data) {
-  console.log('got this recording data!', data.length);;
+  console.log('got this', data);
+  console.log('of length', data.length);
   datas.push(data);
 })
 
-audio.on('error', function(err) {
-  console.log("ERROR:", err);
-})
-
-audio.on('startRecording', function() {
-  console.log('started recording!');
-});
-
-
 audio.on('stopRecording', function() {
-  console.log('stopped recording!');
   var rec = Buffer.concat(datas);
   console.log('playing len', rec.length);
+  console.log('saving to', filename);
   process.sendfile(filename, rec);
-  // fs.writeFileSync(filename, rec);
-  // fs.createReadStream(filename).pipe(audio.createPlayStream());
+  fs.writeFileSync(filename, rec);
+  fs.createReadStream(filename).pipe(audio.createPlayStream());
 });
 
-function testOutputs() {
-  audio.setInput('lineIn', function(err) {
+function testInputs() {
+  audio.setInput('mic', function(err) {
     console.log('line in is set', err);
     audio.startRecording('voice', function(err) {
       console.log('started recording');
@@ -40,7 +32,7 @@ function testOutputs() {
   });
 }
 
-function testInputs() {
+function testOutputs() {
   audio.setOutput('lineOut', function(err) {
     console.log('set to line in', err);
     audio.play(song, function(err) {
@@ -83,15 +75,15 @@ function testSwitchRecordPlay() {
 }
 
 function testRecording() {
-  audio.setInput('mic', function() {
-    audio.startRecording('voice', function() {
+  audio.setInput('lineIn', function() {
+    audio.startRecording('hifi-voice', function() {
       setTimeout(function stopRecording() {
         audio.stopRecording(function stopped() {
           console.log("Stop recording callback called...");
         })
-      }, 4000);
-    });    
-  })
+      }, 7000);
+    });
+  });
 }
 
 function testPlayback() {
@@ -126,21 +118,32 @@ function testPlayQueue() {
 }
 
 function testPlayStream() {
-  var file = fs.createReadStream('/app/examples/sample.mp3');
+  var file = fs.createReadStream('/app/sample.mp3');
   file.pipe(audio.createPlayStream());
 }
 
 function testRecordStream() {
   var rec = audio.createRecordStream("voice");
   var file = fs.createWriteStream('rec.ogg');
+  console.log('starting pipe...');
   rec.pipe(file);
-
+  var interval;
   setTimeout(function() {
+    clearInterval(interval)
     audio.stopRecording(function() {
-      console.log("Stop recording callback after stream called...");
-      rec.unpipe(file);
+      console.log("STOP RECORDING DAMMIT recording callback after stream called...");
+      // rec.unpipe(file);
+      console.log('creating read stream!')
+      // fs.createReadStream('/app/rec.ogg').pipe(audio.createPlayStream());
+      // console.log('beginning to pipe.');
     });
-  }, 4000);
+  }, 5000);
+
+  console.log('what?');
+  interval = setInterval(function() {
+    console.log("TICK");
+  }, 1000);
+  console.log('INTERVAL SET');
 }
 
 function testPlayStreamSmallChunks(chunkSize) {
@@ -162,18 +165,16 @@ function testPlayStreamSmallChunks(chunkSize) {
   rs.push(null);
 
   rs.pipe(audio.createPlayStream())
-
 }
-
 
 audio.on('ready', function() {
   console.log("Ready to go!");
-  audio.setVolume(20, 20, function(e) {
+  // audio.setVolume(20, 20, function(e) {
     // testOutputs();
     // testInputs();
     // testPlayStreamSmallChunks(5000);
     // testRecordStream();
-    testPlayStream();
+    // testPlayStream();
     // testSwitchPlayRecord();
     // testSwitchRecordPlay();
     // testQueue();
@@ -181,5 +182,7 @@ audio.on('ready', function() {
     // testRecording();
     // testPlayStop();
     // testPlayback();
-  });
+  // });
 });
+
+process.ref();
