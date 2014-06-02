@@ -1,6 +1,6 @@
 var tessel = require('tessel');
 var fs = require('fs');
-var song = fs.readFileSync('/app/playback/sample.mp3');
+// var song = fs.readFileSync('/app/playback/sample.mp3');
 var audio = require('./').use(tessel.port['A']);
 var stream = require('stream');
 var filename = process.argv[2] || 'audio-recording.ogg';
@@ -126,7 +126,7 @@ function testPlayQueue() {
 }
 
 function testPlayStream() {
-  var file = fs.createReadStream('/app/playback/rayman.ogg');
+  var file = fs.createReadStream('/app/examples/sample.mp3');
   file.pipe(audio.createPlayStream());
 }
 
@@ -173,12 +173,12 @@ audio.on('ready', function() {
     // testInputs();
     // testPlayStreamSmallChunks(5000);
     // testRecordStream();
-    // testPlayStream();
+    testPlayStream();
     // testSwitchPlayRecord();
     // testSwitchRecordPlay();
     // testQueue();
     // testPlayQueue();
-    testRecording();
+    // testRecording();
     // testPlayStop();
     // testPlayback();
   });

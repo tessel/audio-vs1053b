@@ -545,7 +545,14 @@ Audio.prototype.queue = function(buff, callback) {
   // Initialize SPI to the correct settings
   self.spi.initialize();
 
+  // If there was a lock in place, wait until it's released
   self.spi.lock(function(err, lock) {
+
+    // Release the lock so that we don't wait until complete for next queue
+    lock.release();
+
+    self.lock = null;
+    
     if (err) {
       if (callback) {
         callback(err);
@@ -554,7 +561,6 @@ Audio.prototype.queue = function(buff, callback) {
       return;
     }
     else {
-      self.lock = lock;
 
       var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
       var track = new Track(buf_len, streamID, callback);
