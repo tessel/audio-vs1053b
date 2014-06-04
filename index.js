@@ -42,9 +42,8 @@ var inputReg = 0x05,
     outputReg = 0x07;
 
 var _audioCallbacks = {};
-var _fillBuff = new Buffer(15000);
+var _fillBuff = new Buffer(25000);
 _fillBuff.fill(0);
-
 
 function use (hardware, next) {
   return new Audio(hardware, next);
@@ -150,7 +149,10 @@ Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
 }
 
 Audio.prototype._handleRecordedData = function(length) {
-  this.emit('data', _fillBuff.slice(0, length));
+  // Copy the recorded data into a new buff for consumption
+  var cp = new Buffer(length);
+  _fillBuff.copy(cp, 0, 0, length);
+  this.emit('data', cp);
 }
 
 Audio.prototype._failConnect = function(err, callback) {
@@ -175,12 +177,13 @@ Audio.prototype.createPlayStream = function() {
     this.bufs.push(chunk);
     this.bufferedLen += chunk.length;
     // Check if this chunk is too small to be played solo
-    if (this.bufferedLen >= 10000) {
+    if (this.bufferedLen >= 5000) {
       var audioData = Buffer.concat(this.bufs);
       this.bufs = []; this.bufferedLen = 0;
 
       var ret = audio.queue(audioData);
       if (ret < 0) {
+
         err = new Error("Unable to queue the streamed buffer.");
       }
     }
@@ -207,11 +210,22 @@ Audio.prototype.createRecordStream = function(profile) {
 
   var recordStream = new Readable;
 
-  var pusher = recordStream.push.bind(recordStream);
+  var bufQueue = [];
 
-  audio.on('data', pusher);
+  audio.on('data', function(data) {
+    bufQueue = bufQueue.concat(data);
+  });
 
-  process.once('audio_recording_complete', recordStream.push.bind(recordStream));
+  recordStream._read = function(size) {
+    var toSend = size > bufQueue.length ? bufQueue.length : size;
+    for (var i = 0; i < toSend; i++) {
+      recordStream.push(bufQueue[i]); 
+    }
+  }
+
+  process.once('audio_recording_complete', function() {
+    recordStream.push(null)
+  });
 
   recordStream._write = function() {};
 
@@ -475,6 +489,13 @@ Audio.prototype.play = function(buff, callback) {
     buff = new Buffer(0);
   }
 
+  if (buff.length === 0) {
+    if (callback) {
+      callback();
+    }
+    return;
+  }
+
   self.spi.lock(function(err, lock) {
     if (err) {
       if (callback) {
@@ -538,6 +559,13 @@ Audio.prototype.queue = function(buff, callback) {
   if (!buff) {
     if (callback) {
       callback(new Error("Must pass valid buffer to queue."));
+    }
+    return;
+  }
+
+  if (buff.length === 0) {
+    if (callback) {
+      callback();
     }
     return;
   }
@@ -692,6 +720,7 @@ Audio.prototype.startRecording = function(profile, callback) {
 
     this.emit('startRecording');
   }
+
 }
 
 
@@ -699,6 +728,9 @@ Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
   process.once('audio_recording_complete', function recStopped(length) {
+
+    process.unref();
+
     // If a callback was provided, return it
     if (callback) {
       callback();
@@ -708,7 +740,6 @@ Audio.prototype.stopRecording = function(callback) {
   });
 
   var ret = hw.audio_stop_recording();
-
   if (ret < 0) {
     var err = new Error("Not in valid state to stop recording.");
 
@@ -717,8 +748,9 @@ Audio.prototype.stopRecording = function(callback) {
     }
 
     this.emit('error', err);
-
-    return;
+  }
+  else {
+    process.ref();
   }
 }
 
