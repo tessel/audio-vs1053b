@@ -1,7 +1,7 @@
 {
   "name": "audio-vs1053b",
   "version": "0.1.4",
-  "description": "",
+  "description": "Library to run the Tessel Audio Module. Plays and records sound.",
   "main": "index.js",
   "scripts": {
     "test": "tinytap -e 'tessel run {} ${AUDIO_PORT}' test/*.js"
