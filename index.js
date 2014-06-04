@@ -44,9 +44,6 @@ var inputReg = 0x05,
 var _audioCallbacks = {};
 var _fillBuff = new Buffer(25000);
 _fillBuff.fill(0);
-_fillBuff[0] = 16;
-_fillBuff[1] = 16;
-
 
 function use (hardware, next) {
   return new Audio(hardware, next);
@@ -213,7 +210,6 @@ Audio.prototype.createRecordStream = function(profile) {
 
   var recordStream = new Readable;
 
-  // var pusher = recordStream.push.bind(recordStream);
   var bufQueue = [];
 
   audio.on('data', function(data) {
@@ -732,6 +728,9 @@ Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
   process.once('audio_recording_complete', function recStopped(length) {
+
+    process.unref();
+
     // If a callback was provided, return it
     if (callback) {
       callback();
@@ -749,8 +748,9 @@ Audio.prototype.stopRecording = function(callback) {
     }
 
     this.emit('error', err);
-
-    return;
+  }
+  else {
+    process.ref();
   }
 }
 

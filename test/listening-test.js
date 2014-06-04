@@ -1,7 +1,7 @@
 var tessel = require('tessel');
 var fs = require('fs');
 var song = fs.readFileSync('/app/sample.mp3');
-var audio = require('./').use(tessel.port['A']);
+var audio = require('../').use(tessel.port['A']);
 var stream = require('stream');
 var filename = 'ogg3.ogg';
 console.log("Saving to filename:", filename);
@@ -179,10 +179,8 @@ audio.on('ready', function() {
     // testSwitchRecordPlay();
     // testQueue();
     // testPlayQueue();
-    // testRecording();
+    testRecording();
     // testPlayStop();
     // testPlayback();
   // });
 });
-
-process.ref();
