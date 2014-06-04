@@ -1,15 +1,35 @@
 {
   "name": "audio-vs1053b",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Library to run the Tessel Audio Module. Plays and records sound.",
   "main": "index.js",
   "scripts": {
     "test": "tinytap -e 'tessel run {} ${AUDIO_PORT}' test/*.js"
   },
-  "hardware": {},
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:tessel/audio-vs1053b.git"
+  },
+  "author": "Technical Machine <team@technical.io>",
+  "hardware": {
+     "./examples": "false",
+     "./test": "false"
+  },
   "author": "",
   "devDependencies": {
     "tinytap": "~0.0.2"
   },
-  "license": "BSD-2-Clause"
+  "directories": {
+    "example": "examples"
+  },
+  "keywords": [
+    "tessel",
+    "audio",
+    "recording",
+    "play",
+    "sound",
+    "music",
+    "vs1053b"
+  ],
+  "license": "MIT/APACHE"
 }
