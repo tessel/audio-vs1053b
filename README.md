@@ -15,6 +15,9 @@ The current version of the Tessel runtime is too slow to play audio files smooth
 
 It sucks but we're expecting major runtime speed improvements to render the C shim unnecessary within the next couple of months.
 
+## Development Status
+Playback and recording to/from the local file system works well. Streams work less well. Interacting with the SDCard, Ambient, and IR doesn't work yet (issues with the SPI bus). This module is currently undergoing heavy development to fix those issues. Please file any bugs you find with this module.
+
 
 ##Example
 ```.js
