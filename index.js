@@ -177,7 +177,7 @@ Audio.prototype.createPlayStream = function() {
     this.bufs.push(chunk);
     this.bufferedLen += chunk.length;
     // Check if this chunk is too small to be played solo
-    if (this.bufferedLen >= 5000) {
+    if (this.bufferedLen >= 10000) {
       var audioData = Buffer.concat(this.bufs);
       this.bufs = []; this.bufferedLen = 0;
 
@@ -213,15 +213,10 @@ Audio.prototype.createRecordStream = function(profile) {
   var bufQueue = [];
 
   audio.on('data', function(data) {
-    bufQueue = bufQueue.concat(data);
+    recordStream.push(data);
   });
 
-  recordStream._read = function(size) {
-    var toSend = size > bufQueue.length ? bufQueue.length : size;
-    for (var i = 0; i < toSend; i++) {
-      recordStream.push(bufQueue[i]); 
-    }
-  }
+  recordStream._read = function(size) {}
 
   process.once('audio_recording_complete', function() {
     recordStream.push(null)
