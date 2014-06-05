@@ -8,12 +8,12 @@ to Headphones/Line out using streams.
 
 var tessel = require('tessel');
 var fs = require('fs');
-var audio = require('audio-vs1053b').use(tessel.port['A']); // Replace '../' with 'audio-vs1053b' in your own code
+var audio = require('../').use(tessel.port['A']); // Replace '../' with 'audio-vs1053b' in your own code
 
 audio.on('ready', function () {
   // Start recording data for a second into a file
   audio.setOutput('headphone', function(err) {
     // Open a file
-    fs.createReadStream('rayman.ogg').pipe(audio.createPlayStream());
+    fs.createReadStream('sample.mp3').pipe(audio.createPlayStream());
   });
 });
