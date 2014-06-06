@@ -21,7 +21,7 @@ It sucks but we're expecting major runtime speed improvements to render the C sh
 Playback and recording to/from the local file system works well. Streams work less well. Interacting with the SDCard, Ambient, and IR doesn't work yet (issues with the SPI bus). This module is currently undergoing heavy development to fix those issues. Please file any bugs you find with this module.
 
 ###Example
-```.js
+```js
 /*********************************************
 This Audio Module demo sets volume, then plays
 an audio file out over Headphones/Line out
@@ -73,9 +73,11 @@ audio.on('error', function(err) {
 &#x20;<a href="#api-audio-setOutput-output-callback-err-Set-the-output-to-either-lineOut-or-headPhones-Defaults-to-lineOut" name="api-audio-setOutput-output-callback-err-Set-the-output-to-either-lineOut-or-headPhones-Defaults-to-lineOut">#</a> audio<b>.setOutput</b> ( output, callback(err) )  
  Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.  
 
-&#x20;<a href="#api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice" name="api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice">#</a> audio<b>.startRecording</b> ( [profile] callback(err) ) <i>Start</i>&nbsp; recording sound from the input. (<i>Receive</i>&nbsp; data in the 'data' event) <i>Callback</i>&nbsp; called after recording initialized (<i>not</i>&nbsp; stopped ) .quality is an optional argument that can be 'voice', 'wideband-voice', 'wideband-stereo', 'hifi-voice', or 'stereo-music'. Default is 'hifi-voice'.  
+&#x20;<a href="#api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice" name="api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice">#</a> audio<b>.startRecording</b> ( [profile] callback(err) )  
+Start recording sound from the input. (Receive data in the 'data' event) Callback called after recording initialized (not stopped ) .quality is an optional argument that can be 'voice', 'wideband-voice', 'wideband-stereo', 'hifi-voice', or 'stereo-music'. Default is 'hifi-voice'.  
 
-&#x20;<a href="#api-audio-stopRecording-callback-err-Stop-recording-sound-note-that-may-receive-one-more-data-event-before-this-completes-when-the-buffer-is-flushed" name="api-audio-stopRecording-callback-err-Stop-recording-sound-note-that-may-receive-one-more-data-event-before-this-completes-when-the-buffer-is-flushed">#</a> audio<b>.stopRecording</b>( callback(err) ) <i>Stop</i>&nbsp; recording sound (<i>note</i>&nbsp; that may receive one more 'data' event before this completes when the buffer is flushed. )  
+&#x20;<a href="#api-audio-stopRecording-callback-err-Stop-recording-sound-note-that-may-receive-one-more-data-event-before-this-completes-when-the-buffer-is-flushed" name="api-audio-stopRecording-callback-err-Stop-recording-sound-note-that-may-receive-one-more-data-event-before-this-completes-when-the-buffer-is-flushed">#</a> audio<b>.stopRecording</b>( callback(err) )  
+Stop recording sound (note that may receive one more 'data' event before this completes when the buffer is flushed. )  
 
 &#x20;<a href="#api-audio-play-audioBuff-callback-err-Play-a-buffer-If-no-buffer-is-passed-in-the-module-will-attempt-to-resume-a-buffer-that-was-paused" name="api-audio-play-audioBuff-callback-err-Play-a-buffer-If-no-buffer-is-passed-in-the-module-will-attempt-to-resume-a-buffer-that-was-paused">#</a> audio<b>.play</b> ( [audioBuff], callback(err) )  
  Play a buffer. If no buffer is passed in, the module will attempt to resume a buffer that was paused.  
