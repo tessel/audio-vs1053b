@@ -237,10 +237,10 @@ Audio.prototype._softReset = function(callback) {
       this._writeSciRegister16(SCI_MODE, mode | MODE_SM_RESET, function(err) {
         if (err) { return callback && callback(err); }
         else {
-          while (!this.MP3_DREQ);
+          while (!this.MP3_DREQ.read()) ;   // wait for ready
           this._writeSciRegister16(SCI_MODE, 0x4800, callback);
         }
-      });
+      }.bind(this));
     }
   }.bind(this))
 }
