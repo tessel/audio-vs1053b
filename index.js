@@ -229,6 +229,13 @@ Audio.prototype.createRecordStream = function(profile) {
   return recordStream;
 }
 
+Audio.prototype._once_dreq_ready = function (fn) {
+  // TODO: use GPIO interrupt
+  // TODO: timeout to give up
+  while (!this.MP3_DREQ.read()) ;   // wait for ready
+  fn();
+}
+
 
 Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
@@ -236,10 +243,9 @@ Audio.prototype._softReset = function(callback) {
     else {
       this._writeSciRegister16(SCI_MODE, mode | MODE_SM_RESET, function(err) {
         if (err) { return callback && callback(err); }
-        else {
-          while (!this.MP3_DREQ.read()) ;   // wait for ready
+        else this._once_dreq_ready(function () {
           this._writeSciRegister16(SCI_MODE, 0x4800, callback);
-        }
+        }.bind(this));
       }.bind(this));
     }
   }.bind(this))
@@ -285,26 +291,22 @@ Audio.prototype._SPItransferArray = function(array, callback) {
 
 //Read the 16-bit value of a VS10xx register
 Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
+  this._once_dreq_ready(function () {
+    this.MP3_XCS.low(); //Select control
 
-  // TODO: Use a GPIO interrupt
-  while (!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating IC is available
-  this.MP3_XCS.low(); //Select control
-
-  //SCI consists of instruction byte, address byte, and 16-bit data word.
-  this._SPItransferByte(0x03, function(err) {
-    this._SPItransferByte(addressbyte, function(err) {
-      this._SPItransferByte(0xFF, function(err, response1) {
-        // TODO: Use a GPIO interrupt
-        while (!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating command is complete
-        this._SPItransferByte(0xFF, function(err, response2) {
-          while (!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating command is complete
-
-          this.MP3_XCS.high(); //Deselect Control
-
-          var result = (response1 << 8) + response2;
-
-          callback && callback(err, result)
-
+    //SCI consists of instruction byte, address byte, and 16-bit data word.
+    this._SPItransferByte(0x03, function(err) {
+      this._SPItransferByte(addressbyte, function(err) {
+        this._SPItransferByte(0xFF, function(err, response1) {
+          this._once_dreq_ready(function () {
+            this._SPItransferByte(0xFF, function(err, response2) {
+              this._once_dreq_ready(function () {
+                this.MP3_XCS.high(); //Deselect Control
+                var result = (response1 << 8) + response2;
+                callback && callback(err, result);
+              }.bind(this));
+            }.bind(this));
+          }.bind(this));
         }.bind(this));
       }.bind(this));
     }.bind(this));
@@ -312,22 +314,20 @@ Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
 }
 
 Audio.prototype._writeSciRegister = function(addressbyte, highbyte, lowbyte, callback) {
+  this._once_dreq_ready(function () {
+    this.MP3_XCS.low(); //Select control
 
-  while(!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating IC is available
-  this.MP3_XCS.low(); //Select control
-
-  //SCI consists of instruction byte, address byte, and 16-bit data word.
-  this._SPItransferArray([0x02, addressbyte, highbyte, lowbyte], function(err) {
-    if (err) {
-      return callback && callback(err);
-    }
-    else {
-      // TODO: GPIO Interrupt
-      while(!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating command is complete
-      this.MP3_XCS.high(); //Deselect Control
-      callback && callback();
-    }
-  }.bind(this))
+    //SCI consists of instruction byte, address byte, and 16-bit data word.
+    this._SPItransferArray([0x02, addressbyte, highbyte, lowbyte], function(err) {
+      if (err) {
+        return callback && callback(err);
+      }
+      else this._once_dreq_ready(function () {
+        this.MP3_XCS.high(); //Deselect Control
+        callback && callback();
+      }.bind(this));
+    }.bind(this));
+  }.bind(this));
 }
 
 Audio.prototype._writeSciRegister16 = function(addressbyte, word, callback) {
