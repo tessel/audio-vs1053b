@@ -277,12 +277,6 @@ Audio.prototype._setClockSpeeds = function(callback) {
 
 }
 
-Audio.prototype._SPItransferByte = function(byte, callback) {
-  this._SPItransferArray([byte], function(err, ret) {
-    callback && callback(err, ret[0]);
-  });
-}
-
 Audio.prototype._SPItransferArray = function(array, callback) {
   this.spi.transfer(new Buffer(array), function(err, ret) {
     return callback && callback(err, ret);
