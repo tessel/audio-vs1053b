@@ -305,17 +305,12 @@ Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
 
 Audio.prototype._writeSciRegister = function(addressbyte, highbyte, lowbyte, callback) {
   this._once_dreq_ready(function () {
+    // TODO: first acquire SPI bus lock
     this.MP3_XCS.low(); //Select control
-
     //SCI consists of instruction byte, address byte, and 16-bit data word.
     this._SPItransferArray([0x02, addressbyte, highbyte, lowbyte], function(err) {
-      if (err) {
-        return callback && callback(err);
-      }
-      else this._once_dreq_ready(function () {
-        this.MP3_XCS.high(); //Deselect Control
-        callback && callback();
-      }.bind(this));
+      this.MP3_XCS.high(); //Deselect Control
+      callback && callback();
     }.bind(this));
   }.bind(this));
 }
