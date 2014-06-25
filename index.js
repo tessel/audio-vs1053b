@@ -51,17 +51,22 @@ function use (hardware, next) {
 
 
 function Audio(hardware, callback) {
-  // Set the spi port
-  this.spi = new hardware.SPI({
-    clockSpeed: 1000000,
-    dataMode: 0
-  });
-
   // Set our register select pins
   this.MP3_XCS = hardware.digital[0].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
   this.MP3_DCS = hardware.digital[1].output(true); //Data Chip Select / BSYNC Pin
   this.MP3_DREQ = hardware.digital[2].input() //Data Request Pin: Player asks for more data
 
+  // Set the spi ports
+  this.controlSPI = new hardware.SPI({
+    chipSelect: this.MP3_XCS,
+    clockSpeed: 1000000     // TODO: I'm not sure why *this* needs high speed, seems to affect data transfer (!)
+  });
+  
+  this.dataSPI = new hardware.SPI({
+    chipSelect: this.MP3_DCS,
+    clockSpeed: 1000000
+  });
+  
   this.input = "";
   this.output = "";
 
@@ -270,27 +275,18 @@ Audio.prototype._setClockSpeeds = function(callback) {
   this._writeSciRegister16(SCI_CLOCKF, 0x6000, function(err) {
     if (err) { return callback && callback(err); }
     else {
-      this.spi.setClockSpeed(4000000);
+      this.dataSPI.setClockSpeed(4000000);
       return callback && callback();
     }
   }.bind(this));
 
 }
 
-Audio.prototype._SPItransferArray = function(array, callback) {
-  this.spi.transfer(new Buffer(array), function(err, ret) {
-    return callback && callback(err, ret);
-  });
-}
-
 //Read the 16-bit value of a VS10xx register
 Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
   this._once_dreq_ready(function () {
-    // TODO: we need to make sure SPI is locked before asserting XCS
-    this.MP3_XCS.low(); //Select control
     //SCI consists of instruction byte, address byte, and 16-bit data word.
-    this._SPItransferArray([0x03, addressbye, 0xFF, 0xFF], function(err, response) {
-      this.MP3_XCS.high(); //Deselect Control
+    this.controlSPI.transfer(new Buffer([0x03, addressbye, 0xFF, 0xFF]), function(err, response) {
       var result = (response[2] << 8) + response[3];
       callback && callback(err, result);
     }.bind(this));
@@ -299,11 +295,8 @@ Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
 
 Audio.prototype._writeSciRegister = function(addressbyte, highbyte, lowbyte, callback) {
   this._once_dreq_ready(function () {
-    // TODO: first acquire SPI bus lock
-    this.MP3_XCS.low(); //Select control
     //SCI consists of instruction byte, address byte, and 16-bit data word.
-    this._SPItransferArray([0x02, addressbyte, highbyte, lowbyte], function(err) {
-      this.MP3_XCS.high(); //Deselect Control
+    this.controlSPI.transfer(new Buffer([0x02, addressbyte, highbyte, lowbyte]), function(err) {
       callback && callback();
     }.bind(this));
   }.bind(this));
@@ -470,7 +463,7 @@ Audio.prototype.play = function(buff, callback) {
     return;
   }
 
-  self.spi.lock(function(err, lock) {
+  self.dataSPI.lock(function(err, lock) {
     if (err) {
       if (callback) {
         callback(err);
@@ -482,7 +475,7 @@ Audio.prototype.play = function(buff, callback) {
     // Save the lock reference so we can free it later
     self.lock = lock;
     // Initialize SPI so it's set to the right settings
-    self.spi.initialize();
+    self.dataSPI.initialize();
     // Send this buffer off to our shim to have it start playing
     var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
 
@@ -545,10 +538,10 @@ Audio.prototype.queue = function(buff, callback) {
   }
 
   // Initialize SPI to the correct settings
-  self.spi.initialize();
+  self.dataSPI.initialize();
 
   // If there was a lock in place, wait until it's released
-  self.spi.lock(function(err, lock) {
+  self.dataSPI.lock(function(err, lock) {
 
     // Release the lock so that we don't wait until complete for next queue
     lock.release();
@@ -660,7 +653,7 @@ Audio.prototype.startRecording = function(profile, callback) {
   }
 
   // Initialize SPI to the correct settings
-  self.spi.initialize();
+  self.dataSPI.initialize();
 
   var pluginDir = __dirname + "/plugins/" + profile + ".img";
 
