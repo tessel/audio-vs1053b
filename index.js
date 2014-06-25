@@ -292,25 +292,15 @@ Audio.prototype._SPItransferArray = function(array, callback) {
 //Read the 16-bit value of a VS10xx register
 Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
   this._once_dreq_ready(function () {
+    // TODO: we need to make sure SPI is locked before asserting XCS
     this.MP3_XCS.low(); //Select control
-
     //SCI consists of instruction byte, address byte, and 16-bit data word.
-    this._SPItransferByte(0x03, function(err) {
-      this._SPItransferByte(addressbyte, function(err) {
-        this._SPItransferByte(0xFF, function(err, response1) {
-          this._once_dreq_ready(function () {
-            this._SPItransferByte(0xFF, function(err, response2) {
-              this._once_dreq_ready(function () {
-                this.MP3_XCS.high(); //Deselect Control
-                var result = (response1 << 8) + response2;
-                callback && callback(err, result);
-              }.bind(this));
-            }.bind(this));
-          }.bind(this));
-        }.bind(this));
-      }.bind(this));
+    this._SPItransferArray([0x03, addressbye, 0xFF, 0xFF], function(err, response) {
+      this.MP3_XCS.high(); //Deselect Control
+      var result = (response[2] << 8) + response[3];
+      callback && callback(err, result);
     }.bind(this));
-  }.bind(this));
+  });
 }
 
 Audio.prototype._writeSciRegister = function(addressbyte, highbyte, lowbyte, callback) {
