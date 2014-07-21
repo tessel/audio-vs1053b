@@ -17,7 +17,7 @@
   },
   "author": "",
   "devDependencies": {
-    "tinytap": "~0.0.2"
+    "tinytap" : "*"
   },
   "directories": {
     "example": "examples"
