@@ -1,10 +1,11 @@
-var test = require('ttt');
+var test = require('tinytap');
 var async = require('async');
 var tessel = require('tessel');
 var portname = process.argv[2] || 'A';
 var audioLib = require('../');
 var audio;
 
+console.log('test is', test);
 async.series([
   // Test Connecting
   test("Connecting to audio module", function(t) {
@@ -119,14 +120,14 @@ async.series([
     });
   }),
 
-  test('stopping non-existant recording again', function(t) {
-    console.log('before we stop recording.');
-    audio.stopRecording(function(err) {
-      console.log('just after calling it');
-      t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
-      t.end();
-    });
-  }),
+  // test('stopping non-existant recording again', function(t) {
+  //   console.log('before we stop recording.');
+  //   audio.stopRecording(function(err) {
+  //     console.log('just after calling it');
+  //     t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
+  //     t.end();
+  //   });
+  // }),
 
 //   test('starting recording and checking data event', function(t) {
 //     console.log('wtf');
