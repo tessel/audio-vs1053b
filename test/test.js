@@ -1,14 +1,15 @@
-var test = require('ttt');
+var test = require('tinytap');
 var async = require('async');
 var tessel = require('tessel');
+var audiolib = require('../');
+
 var portname = process.argv[2] || 'A';
-var audioLib = require('../');
 var audio;
 
 async.series([
   // Test Connecting
   test("Connecting to audio module", function(t) {
-    audio = audioLib.use(tessel.port[portname], function(err, audio) {
+    audio = audiolib.use(tessel.port[portname], function(err, audio) {
       t.ok(audio, 'The audio module object was not returned');
       t.equal(err, undefined, 'There was an error connecting');
       t.end();
