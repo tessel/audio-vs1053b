@@ -10,14 +10,15 @@
     "type": "git",
     "url": "git@github.com:tessel/audio-vs1053b.git"
   },
-  "author": "Technical Machine <team@technical.io>",
-  "hardware": {
-     "./examples": "false",
-     "./test": "false"
-  },
   "author": "",
+  "hardware": {
+    "./examples": "false",
+    "./test": "false"
+  },
+  "dependencies": {},
   "devDependencies": {
-    "tinytap" : "*"
+    "async": "^0.9.0",
+    "tinytap": "^0.2.0"
   },
   "directories": {
     "example": "examples"
