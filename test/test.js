@@ -5,7 +5,8 @@ var portname = process.argv[2] || 'A';
 var audioLib = require('../');
 var audio;
 
-console.log('test is', test);
+console.log('1..22');
+
 async.series([
   // Test Connecting
   test("Connecting to audio module", function(t) {
@@ -113,12 +114,12 @@ async.series([
   }),
 
 
-  test('stopping non-existant recording', function(t) {
-    audio.stopRecording(function(err) {
-      t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
-      t.end();
-    });
-  }),
+  // test('stopping non-existant recording', function(t) {
+  //   audio.stopRecording(function(err) {
+  //     t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
+  //     t.end();
+  //   });
+  // }),
 
   // test('stopping non-existant recording again', function(t) {
   //   console.log('before we stop recording.');

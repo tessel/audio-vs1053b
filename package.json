@@ -16,8 +16,10 @@
      "./test": "false"
   },
   "author": "",
+  "dependencies": {},
   "devDependencies": {
-    "tinytap" : "*"
+    "async": "^0.9.0",
+    "tinytap": "^0.2.0"
   },
   "directories": {
     "example": "examples"
