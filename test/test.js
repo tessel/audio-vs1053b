@@ -1,7 +1,7 @@
 var test = require('tinytap');
 var async = require('async');
 var tessel = require('tessel');
-var portname = process.argv[2] || 'A';
+var portName = process.argv[2] || 'A';
 var audioLib = require('../');
 var audio;
 
@@ -10,7 +10,7 @@ console.log('1..22');
 async.series([
   // Test Connecting
   test("Connecting to audio module", function(t) {
-    audio = audioLib.use(tessel.port[portname], function(err, audio) {
+    audio = audioLib.use(tessel.port[portName], function(err, audio) {
       t.ok(audio, 'The audio module object was not returned');
       t.equal(err, undefined, 'There was an error connecting');
       t.end();
@@ -113,65 +113,68 @@ async.series([
     });
   }),
 
-
-  // test('stopping non-existant recording', function(t) {
-  //   audio.stopRecording(function(err) {
-  //     t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
-  //     t.end();
-  //   });
-  // }),
-
-  // test('stopping non-existant recording again', function(t) {
-  //   console.log('before we stop recording.');
-  //   audio.stopRecording(function(err) {
-  //     console.log('just after calling it');
-  //     t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
-  //     t.end();
-  //   });
-  // }),
-
-//   test('starting recording and checking data event', function(t) {
-//     console.log('wtf');
-//     t.fail();
-//     var interval;
-//     var finished;
-//     var i = 0;
-
-//     console.log('setting up listener');
-//     audio.once('data', function(data) {
-//       i++;
-//       console.log('got ', data);
-//       if (i > 4) {
-//         console.log('clearing');
-//         clearInterval(interval);
-//         finished = true;
-
-//         t.ok(data, 'data was invalid on recording event');
-//         t.ok(data.length > 0, 'no data was returned on recording');
-
-//         audio.stopRecording(function(err) {
-//           console.log('we got an error', err);
-//           t.equal(err, undefined, 'error stopping recording');
-//           t.end();
-//         });
-//       }
-//     });
-
-//     console.log('starting recording');
-//     audio.startRecording(function(err) {
-//       console.log('recording started');
-//       if (!finished) {
-//         interval = setTimeout(function() {
-//           console.log('failing')
-//           t.fail();
-//         }, 20000);
-//       }
-//     });
-//   }),
-
   ], function(err) {
     console.log('error running tests', err);
   }
 );
+
+// These tests currently don't pass
+if (0) {
+
+  test('stopping non-existant recording', function(t) {
+    audio.stopRecording(function(err) {
+      t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
+      t.end();
+    });
+  })
+
+  test('stopping non-existant recording again', function(t) {
+    console.log('before we stop recording.');
+    audio.stopRecording(function(err) {
+      console.log('just after calling it');
+      t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
+      t.end();
+    });
+  })
+
+  test('starting recording and checking data event', function(t) {
+    console.log('wtf');
+    t.fail();
+    var interval;
+    var finished;
+    var i = 0;
+
+    console.log('setting up listener');
+    audio.once('data', function(data) {
+      i++;
+      console.log('got ', data);
+      if (i > 4) {
+        console.log('clearing');
+        clearInterval(interval);
+        finished = true;
+
+        t.ok(data, 'data was invalid on recording event');
+        t.ok(data.length > 0, 'no data was returned on recording');
+
+        audio.stopRecording(function(err) {
+          console.log('we got an error', err);
+          t.equal(err, undefined, 'error stopping recording');
+          t.end();
+        });
+      }
+    });
+
+    console.log('starting recording');
+    audio.startRecording(function(err) {
+      console.log('recording started');
+      if (!finished) {
+        interval = setTimeout(function() {
+          console.log('failing')
+          t.fail();
+        }, 20000);
+      }
+    });
+  })
+}
 
 
