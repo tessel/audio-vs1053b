@@ -171,6 +171,7 @@ Audio.prototype.createPlayStream = function() {
   // less than ~3425 bytes...
   playStream.bufs = [];
   playStream.bufferedLen = 0;
+  playStream.last = 0;
 
   playStream._write = function (chunk, enc, next) {
     var err;
@@ -180,7 +181,6 @@ Audio.prototype.createPlayStream = function() {
     if (this.bufferedLen >= 10000) {
       var audioData = Buffer.concat(this.bufs);
       this.bufs = []; this.bufferedLen = 0;
-
       var ret = audio.queue(audioData);
       if (ret < 0) {
 
@@ -189,6 +189,16 @@ Audio.prototype.createPlayStream = function() {
     }
     next(err);
   };
+
+  audio.on('queued', function(id) {
+    playStream.last = id;
+  })
+
+  process.on('audio_playback_complete', function(err, stream_id) {
+    if (stream_id === playStream.last) {
+      playStream.emit('end');
+    }
+  })
 
   playStream.on('finish', function flush() {
     var audioData = Buffer.concat(this.bufs);
@@ -540,9 +550,11 @@ Audio.prototype._handleTrack = function(track) {
   else {
     // If a callback was provided
     if (track.callback) {
-      // Add it to the callbacks dict
+    // Add it to the callbacks dict
       _audioCallbacks[track.id] = track.callback;
     }
+
+    this.emit('queued', track.id);
   }
 }
 
@@ -740,7 +752,7 @@ Audio.prototype.stopRecording = function(callback) {
       // Stop recording
       self.emit('stopRecording');
     }
-    
+
     process.once('audio_recording_complete', recStopped);
 
     process.ref();

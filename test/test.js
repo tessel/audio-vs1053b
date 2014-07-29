@@ -1,12 +1,12 @@
 var test = require('tinytap');
 var async = require('async');
 var tessel = require('tessel');
+var fs = require('fs');
 var portName = process.argv[2] || 'A';
 var audioLib = require('../');
 var audio;
 
-test.count(27);
-
+test.count(29);
 
 async.series([
   // Test Connecting
@@ -165,6 +165,55 @@ async.series([
         }, 10000);
       }
     });
+  }),
+
+  test('recording to the file system', function(t) {
+    var file = fs.createWriteStream('recordingData.ogg');
+    // Create a readable stream of incoming data
+    var soundData = audio.createRecordStream();
+    // Pipe data to the file
+    soundData.pipe(file);
+    // Stop recording after 2 seconds
+    setTimeout(function stopRecording() {
+
+      audio.stopRecording(function stopped(err) {
+        t.equal(err, undefined, 'there was an error stopping recording to the file system');
+        t.end();
+      });
+    }, 2000);
+  }),
+
+  test('playing a static audio file', function(t) {
+    // Open a file
+    var audioFile = fs.readFileSync('sample.mp3');
+    var timeout;
+
+    // Play the file
+    audio.play(audioFile, function(err) {
+      clearTimeout(timeout);
+      t.equal(err, undefined, 'Error playing audio file.');
+      t.end();
+    });
+
+    timeout = setTimeout(function noCallback() {
+      t.fail('Callback of play not called.');
+    }, 10000);
+  }),
+
+  test('streaming an audio file from the flash system', function(t) {
+    var playStream = audio.createPlayStream();
+    var timeout;
+
+    playStream.on('end', function() {
+      clearTimeout(timeout);
+      t.end();
+    });
+
+    fs.createReadStream('sample.mp3').pipe(playStream);
+
+    timeout = setTimeout(function noCallback() {
+      t.fail('End event of play stream not called.');
+    }, 10000);
   }),
 
   ], function(err) {
