@@ -534,8 +534,6 @@ Audio.prototype._handleTrack = function(track) {
       track.callback(err);
     }
 
-    this.emit('error', err, track);
-
     return;
   }
   // No error occured
@@ -597,8 +595,10 @@ Audio.prototype.pause = function(callback) {
   var ret = hw.audio_pause_buffer();
 
   if (ret < 0) {
-    err = new Error("A buffer is not being played.");
-    this.emit('error', err);
+    if (callback) {
+      callback(new Error("A buffer is not being played."));
+    }
+   return;
   }
 
   // If we have a lock on the spi bus
@@ -626,7 +626,6 @@ Audio.prototype.stop = function(callback) {
 
   if (ret < 0) {
     err = new Error("Not in a valid state to call stop.");
-    this.emit('error', err);
   }
 
   // If we have a lock on the spi bus
@@ -676,7 +675,6 @@ Audio.prototype.startRecording = function(profile, callback) {
     if (callback) {
       callback(err);
     }
-    self.emit('error', err);
     return;
   }
 
@@ -702,8 +700,6 @@ Audio.prototype.startRecording = function(profile, callback) {
     if (callback) {
       callback(err);
     }
-
-    this.emit('error', err);
 
     return;
   }
@@ -741,8 +737,6 @@ Audio.prototype.stopRecording = function(callback) {
     if (callback) {
       callback(err);
     }
-
-    this.emit('error', err);
   }
   else {
     process.ref();
