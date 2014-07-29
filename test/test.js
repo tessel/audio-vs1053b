@@ -5,7 +5,7 @@ var portName = process.argv[2] || 'A';
 var audioLib = require('../');
 var audio;
 
-test.count(23);
+test.count(27);
 
 
 async.series([
@@ -122,51 +122,50 @@ async.series([
   }),
 
   test('stopping non-existant recording again', function(t) {
-    console.log('before we stop recording.');
     audio.stopRecording(function(err) {
-      console.log('just after calling it');
       t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
       t.end();
     });
   }),
 
-  // test('starting recording and checking data event', function(t) {
-  //   t.fail();
-  //   var interval;
-  //   var finished;
-  //   var i = 0;
+  test('starting recording and checking data event', function(t) {
 
-  //   console.log('setting up listener');
-  //   audio.once('data', function(data) {
-  //     i++;
-  //     console.log('got ', data);
-  //     if (i > 4) {
-  //       console.log('clearing');
-  //       clearInterval(interval);
-  //       finished = true;
+    var timeout;
+    var finished;
+    var i = 0;
 
-  //       t.ok(data, 'data was invalid on recording event');
-  //       t.ok(data.length > 0, 'no data was returned on recording');
+    audio.on('data', function(data) {
+      i++;
+      // Once we get four data events
+      if (i > 4) {
 
-  //       audio.stopRecording(function(err) {
-  //         console.log('we got an error', err);
-  //         t.equal(err, undefined, 'error stopping recording');
-  //         t.end();
-  //       });
-  //     }
-  //   });
+        // Clear the 
+        clearTimeout(timeout);
+        audio.removeAllListeners('data');
+        
+        finished = true;
 
-  //   console.log('starting recording');
-  //   audio.startRecording(function(err) {
-  //     console.log('recording started');
-  //     if (!finished) {
-  //       interval = setTimeout(function() {
-  //         console.log('failing')
-  //         t.fail();
-  //       }, 20000);
-  //     }
-  //   });
-  // }),
+        t.ok(data, 'data was invalid on recording event');
+        t.ok(data.length > 0, 'no data was returned on recording');
+
+        audio.once('stopRecording', function(err) {
+          t.end();
+        });
+
+        audio.stopRecording(function(err) {
+          t.equal(err, undefined, 'error stopping recording');
+        });
+      }
+    });
+
+    audio.startRecording(function(err) {
+      if (!finished) {
+        timeout = setTimeout(function() {
+          t.fail();
+        }, 10000);
+      }
+    });
+  }),
 
   ], function(err) {
     console.log('error running tests', err);

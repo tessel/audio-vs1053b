@@ -718,19 +718,8 @@ Audio.prototype.startRecording = function(profile, callback) {
 Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
-  process.once('audio_recording_complete', function recStopped(length) {
-
-    process.unref();
-
-    // If a callback was provided, return it
-    if (callback) {
-      callback();
-    }
-    // Stop recording
-    self.emit('stopRecording');
-  });
-
   var ret = hw.audio_stop_recording();
+
   if (ret < 0) {
     var err = new Error("Not in valid state to stop recording.");
 
@@ -739,6 +728,21 @@ Audio.prototype.stopRecording = function(callback) {
     }
   }
   else {
+
+    function recStopped(length) {
+
+      process.unref();
+
+      // If a callback was provided, return it
+      if (callback) {
+        callback();
+      }
+      // Stop recording
+      self.emit('stopRecording');
+    }
+    
+    process.once('audio_recording_complete', recStopped);
+
     process.ref();
   }
 }
