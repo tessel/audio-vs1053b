@@ -1,11 +1,12 @@
 var test = require('tinytap');
 var async = require('async');
 var tessel = require('tessel');
+var fs = require('fs');
 var portName = process.argv[2] || 'A';
 var audioLib = require('../');
 var audio;
 
-console.log('1..22');
+test.count(29);
 
 async.series([
   // Test Connecting
@@ -113,68 +114,111 @@ async.series([
     });
   }),
 
-  ], function(err) {
-    console.log('error running tests', err);
-  }
-);
-
-// These tests currently don't pass
-if (0) {
-
   test('stopping non-existant recording', function(t) {
     audio.stopRecording(function(err) {
       t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
       t.end();
     });
-  })
+  }),
 
   test('stopping non-existant recording again', function(t) {
-    console.log('before we stop recording.');
     audio.stopRecording(function(err) {
-      console.log('just after calling it');
       t.ok(err, 'no error was thrown when stopping a recording that wasn\'t started');
       t.end();
     });
-  })
+  }),
 
   test('starting recording and checking data event', function(t) {
-    console.log('wtf');
-    t.fail();
-    var interval;
+
+    var timeout;
     var finished;
     var i = 0;
 
-    console.log('setting up listener');
-    audio.once('data', function(data) {
+    audio.on('data', function(data) {
       i++;
-      console.log('got ', data);
+      // Once we get four data events
       if (i > 4) {
-        console.log('clearing');
-        clearInterval(interval);
+
+        // Clear the 
+        clearTimeout(timeout);
+        audio.removeAllListeners('data');
+        
         finished = true;
 
         t.ok(data, 'data was invalid on recording event');
         t.ok(data.length > 0, 'no data was returned on recording');
 
-        audio.stopRecording(function(err) {
-          console.log('we got an error', err);
-          t.equal(err, undefined, 'error stopping recording');
+        audio.once('stopRecording', function(err) {
           t.end();
+        });
+
+        audio.stopRecording(function(err) {
+          t.equal(err, undefined, 'error stopping recording');
         });
       }
     });
 
-    console.log('starting recording');
     audio.startRecording(function(err) {
-      console.log('recording started');
       if (!finished) {
-        interval = setTimeout(function() {
-          console.log('failing')
+        timeout = setTimeout(function() {
           t.fail();
-        }, 20000);
+        }, 10000);
       }
     });
-  })
-}
+  }),
+
+  test('recording to the file system', function(t) {
+    var file = fs.createWriteStream('recordingData.ogg');
+    // Create a readable stream of incoming data
+    var soundData = audio.createRecordStream();
+    // Pipe data to the file
+    soundData.pipe(file);
+    // Stop recording after 2 seconds
+    setTimeout(function stopRecording() {
+
+      audio.stopRecording(function stopped(err) {
+        t.equal(err, undefined, 'there was an error stopping recording to the file system');
+        t.end();
+      });
+    }, 2000);
+  }),
+
+  test('playing a static audio file', function(t) {
+    // Open a file
+    var audioFile = fs.readFileSync('sample.mp3');
+    var timeout;
+
+    // Play the file
+    audio.play(audioFile, function(err) {
+      clearTimeout(timeout);
+      t.equal(err, undefined, 'Error playing audio file.');
+      t.end();
+    });
+
+    timeout = setTimeout(function noCallback() {
+      t.fail('Callback of play not called.');
+    }, 10000);
+  }),
+
+  test('streaming an audio file from the flash system', function(t) {
+    var playStream = audio.createPlayStream();
+    var timeout;
+
+    playStream.on('end', function() {
+      clearTimeout(timeout);
+      t.end();
+    });
+
+    fs.createReadStream('sample.mp3').pipe(playStream);
+
+    timeout = setTimeout(function noCallback() {
+      t.fail('End event of play stream not called.');
+    }, 10000);
+  }),
+
+  ], function(err) {
+    console.log('error running tests', err);
+  }
+);
 
 

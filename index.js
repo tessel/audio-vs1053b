@@ -171,6 +171,7 @@ Audio.prototype.createPlayStream = function() {
   // less than ~3425 bytes...
   playStream.bufs = [];
   playStream.bufferedLen = 0;
+  playStream.last = 0;
 
   playStream._write = function (chunk, enc, next) {
     var err;
@@ -180,7 +181,6 @@ Audio.prototype.createPlayStream = function() {
     if (this.bufferedLen >= 10000) {
       var audioData = Buffer.concat(this.bufs);
       this.bufs = []; this.bufferedLen = 0;
-
       var ret = audio.queue(audioData);
       if (ret < 0) {
 
@@ -189,6 +189,16 @@ Audio.prototype.createPlayStream = function() {
     }
     next(err);
   };
+
+  audio.on('queued', function(id) {
+    playStream.last = id;
+  })
+
+  process.on('audio_playback_complete', function(err, stream_id) {
+    if (stream_id === playStream.last) {
+      playStream.emit('end');
+    }
+  })
 
   playStream.on('finish', function flush() {
     var audioData = Buffer.concat(this.bufs);
@@ -534,17 +544,17 @@ Audio.prototype._handleTrack = function(track) {
       track.callback(err);
     }
 
-    this.emit('error', err, track);
-
     return;
   }
   // No error occured
   else {
     // If a callback was provided
     if (track.callback) {
-      // Add it to the callbacks dict
+    // Add it to the callbacks dict
       _audioCallbacks[track.id] = track.callback;
     }
+
+    this.emit('queued', track.id);
   }
 }
 
@@ -597,8 +607,10 @@ Audio.prototype.pause = function(callback) {
   var ret = hw.audio_pause_buffer();
 
   if (ret < 0) {
-    err = new Error("A buffer is not being played.");
-    this.emit('error', err);
+    if (callback) {
+      callback(new Error("A buffer is not being played."));
+    }
+   return;
   }
 
   // If we have a lock on the spi bus
@@ -626,7 +638,6 @@ Audio.prototype.stop = function(callback) {
 
   if (ret < 0) {
     err = new Error("Not in a valid state to call stop.");
-    this.emit('error', err);
   }
 
   // If we have a lock on the spi bus
@@ -676,7 +687,6 @@ Audio.prototype.startRecording = function(profile, callback) {
     if (callback) {
       callback(err);
     }
-    self.emit('error', err);
     return;
   }
 
@@ -703,8 +713,6 @@ Audio.prototype.startRecording = function(profile, callback) {
       callback(err);
     }
 
-    this.emit('error', err);
-
     return;
   }
 
@@ -722,29 +730,31 @@ Audio.prototype.startRecording = function(profile, callback) {
 Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
-  process.once('audio_recording_complete', function recStopped(length) {
-
-    process.unref();
-
-    // If a callback was provided, return it
-    if (callback) {
-      callback();
-    }
-    // Stop recording
-    self.emit('stopRecording');
-  });
-
   var ret = hw.audio_stop_recording();
+
   if (ret < 0) {
     var err = new Error("Not in valid state to stop recording.");
 
     if (callback) {
       callback(err);
     }
-
-    this.emit('error', err);
   }
   else {
+
+    function recStopped(length) {
+
+      process.unref();
+
+      // If a callback was provided, return it
+      if (callback) {
+        callback();
+      }
+      // Stop recording
+      self.emit('stopRecording');
+    }
+
+    process.once('audio_recording_complete', recStopped);
+
     process.ref();
   }
 }
