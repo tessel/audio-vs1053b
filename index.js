@@ -51,17 +51,22 @@ function use (hardware, next) {
 
 
 function Audio(hardware, callback) {
-  // Set the spi port
-  this.spi = new hardware.SPI({
-    clockSpeed: 1000000,
-    dataMode: 0
-  });
-
   // Set our register select pins
   this.MP3_XCS = hardware.digital[0].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
   this.MP3_DCS = hardware.digital[1].output(true); //Data Chip Select / BSYNC Pin
   this.MP3_DREQ = hardware.digital[2].input() //Data Request Pin: Player asks for more data
 
+  // Set the spi ports
+  this.controlSPI = new hardware.SPI({
+    chipSelect: this.MP3_XCS,
+    clockSpeed: 1000000     // TODO: I'm not sure why *this* needs high speed, seems to affect data transfer (!)
+  });
+  
+  this.dataSPI = new hardware.SPI({
+    chipSelect: this.MP3_DCS,
+    clockSpeed: 1000000
+  });
+  
   this.input = "";
   this.output = "";
 
@@ -239,6 +244,13 @@ Audio.prototype.createRecordStream = function(profile) {
   return recordStream;
 }
 
+Audio.prototype._once_dreq_ready = function (fn) {
+  // TODO: use GPIO interrupt
+  // TODO: timeout to give up
+  while (!this.MP3_DREQ.read()) ;   // wait for ready
+  fn();
+}
+
 
 Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
@@ -246,11 +258,10 @@ Audio.prototype._softReset = function(callback) {
     else {
       this._writeSciRegister16(SCI_MODE, mode | MODE_SM_RESET, function(err) {
         if (err) { return callback && callback(err); }
-        else {
-          while (!this.MP3_DREQ);
+        else this._once_dreq_ready(function () {
           this._writeSciRegister16(SCI_MODE, 0x4800, callback);
-        }
-      });
+        }.bind(this));
+      }.bind(this));
     }
   }.bind(this))
 }
@@ -274,70 +285,31 @@ Audio.prototype._setClockSpeeds = function(callback) {
   this._writeSciRegister16(SCI_CLOCKF, 0x6000, function(err) {
     if (err) { return callback && callback(err); }
     else {
-      this.spi.setClockSpeed(4000000);
+      this.dataSPI.setClockSpeed(4000000);
       return callback && callback();
     }
   }.bind(this));
 
 }
 
-Audio.prototype._SPItransferByte = function(byte, callback) {
-  this._SPItransferArray([byte], function(err, ret) {
-    callback && callback(err, ret[0]);
-  });
-}
-
-Audio.prototype._SPItransferArray = function(array, callback) {
-  this.spi.transfer(new Buffer(array), function(err, ret) {
-    return callback && callback(err, ret);
-  });
-}
-
 //Read the 16-bit value of a VS10xx register
 Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
-
-  // TODO: Use a GPIO interrupt
-  while (!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating IC is available
-  this.MP3_XCS.low(); //Select control
-
-  //SCI consists of instruction byte, address byte, and 16-bit data word.
-  this._SPItransferByte(0x03, function(err) {
-    this._SPItransferByte(addressbyte, function(err) {
-      this._SPItransferByte(0xFF, function(err, response1) {
-        // TODO: Use a GPIO interrupt
-        while (!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating command is complete
-        this._SPItransferByte(0xFF, function(err, response2) {
-          while (!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating command is complete
-
-          this.MP3_XCS.high(); //Deselect Control
-
-          var result = (response1 << 8) + response2;
-
-          callback && callback(err, result)
-
-        }.bind(this));
-      }.bind(this));
+  this._once_dreq_ready(function () {
+    //SCI consists of instruction byte, address byte, and 16-bit data word.
+    this.controlSPI.transfer(new Buffer([0x03, addressbye, 0xFF, 0xFF]), function(err, response) {
+      var result = (response[2] << 8) + response[3];
+      callback && callback(err, result);
     }.bind(this));
-  }.bind(this));
+  });
 }
 
 Audio.prototype._writeSciRegister = function(addressbyte, highbyte, lowbyte, callback) {
-
-  while(!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating IC is available
-  this.MP3_XCS.low(); //Select control
-
-  //SCI consists of instruction byte, address byte, and 16-bit data word.
-  this._SPItransferArray([0x02, addressbyte, highbyte, lowbyte], function(err) {
-    if (err) {
-      return callback && callback(err);
-    }
-    else {
-      // TODO: GPIO Interrupt
-      while(!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating command is complete
-      this.MP3_XCS.high(); //Deselect Control
+  this._once_dreq_ready(function () {
+    //SCI consists of instruction byte, address byte, and 16-bit data word.
+    this.controlSPI.transfer(new Buffer([0x02, addressbyte, highbyte, lowbyte]), function(err) {
       callback && callback();
-    }
-  }.bind(this))
+    }.bind(this));
+  }.bind(this));
 }
 
 Audio.prototype._writeSciRegister16 = function(addressbyte, word, callback) {
@@ -501,7 +473,7 @@ Audio.prototype.play = function(buff, callback) {
     return;
   }
 
-  self.spi.lock(function(err, lock) {
+  self.dataSPI.lock(function(err, lock) {
     if (err) {
       if (callback) {
         callback(err);
@@ -513,7 +485,7 @@ Audio.prototype.play = function(buff, callback) {
     // Save the lock reference so we can free it later
     self.lock = lock;
     // Initialize SPI so it's set to the right settings
-    self.spi.initialize();
+    self.dataSPI.initialize();
     // Send this buffer off to our shim to have it start playing
     var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
 
@@ -576,10 +548,10 @@ Audio.prototype.queue = function(buff, callback) {
   }
 
   // Initialize SPI to the correct settings
-  self.spi.initialize();
+  self.dataSPI.initialize();
 
   // If there was a lock in place, wait until it's released
-  self.spi.lock(function(err, lock) {
+  self.dataSPI.lock(function(err, lock) {
 
     // Release the lock so that we don't wait until complete for next queue
     lock.release();
@@ -691,7 +663,7 @@ Audio.prototype.startRecording = function(profile, callback) {
   }
 
   // Initialize SPI to the correct settings
-  self.spi.initialize();
+  self.dataSPI.initialize();
 
   var pluginDir = __dirname + "/plugins/" + profile + ".img";
 
