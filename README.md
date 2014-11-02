@@ -37,7 +37,7 @@ var audioFile = 'sample.mp3';
 audio.on('ready', function() {
   console.log("Audio module connected! Setting volume...");
   // Set the volume in decibels. Around 20 is good; smaller is louder.
-  audio.setVolume(20, function(err) {
+  audio.setVolume(.2, function(err) {
     if (err) {
       return console.log(err);
     }
