@@ -512,8 +512,6 @@ Audio.prototype.play = function(buff, callback) {
 
     // Save the lock reference so we can free it later
     self.lock = lock;
-    // Initialize SPI so it's set to the right settings
-    self.spi.initialize();
     // Send this buffer off to our shim to have it start playing
     var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
 
