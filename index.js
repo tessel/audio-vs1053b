@@ -428,7 +428,7 @@ Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, 
 // helper function for setVolume
 Audio.prototype._normalizeVolume = function(vol){
   vol = (vol > 1) ? 1 : (vol < 0) ? 0 : vol; // make sure val is in the range 0-1.
-  return Math.floor((1 - vol) * 0xFE); // 0xFE = min sound level before completely off (0xFF)
+  return Math.round((1 - vol) * 0xFE); // 0xFE = min sound level before completely off (0xFF)
 }
 
 Audio.prototype.setInput = function(input, callback) {
