@@ -36,8 +36,8 @@ var audioFile = 'sample.mp3';
 // Wait for the module to connect
 audio.on('ready', function() {
   console.log("Audio module connected! Setting volume...");
-  // Set the volume in decibels. Around 20 is good; smaller is louder.
-  audio.setVolume(20, function(err) {
+  // Set the volume in decibels. Around .8 is good; 80% max volume or -25db
+  audio.setVolume(.8, function(err) {
     if (err) {
       return console.log(err);
     }
@@ -65,13 +65,13 @@ audio.on('error', function(err) {
 ###Methods
 
 &#x20;<a href="#api-audio-setVolume-leftChannelDb-rightChannelDb-callback-err-Set-the-output-volume-Level-is-a-Number-from-0-0-to-1-0" name="api-audio-setVolume-leftChannelDb-rightChannelDb-callback-err-Set-the-output-volume-Level-is-a-Number-from-0-0-to-1-0">#</a> audio<b>.setVolume</b>( leftChannelDb, [rightChannelDb,] callback(err) )  
- Set the output volume. Level is a Number from 0.0 to 1.0  
+ Set the output volume. Level is a Number from 0.0 to 1.0 (-127dB to 0dB)
 
 &#x20;<a href="#api-audio-setInput-input-callback-err-Set-the-input-to-either-lineIn-or-mic-Defaults-to-lineIn" name="api-audio-setInput-input-callback-err-Set-the-input-to-either-lineIn-or-mic-Defaults-to-lineIn">#</a> audio<b>.setInput</b>( input, callback(err) )  
  Set the input to either 'lineIn' or 'mic'. Defaults to 'lineIn'.  
 
 &#x20;<a href="#api-audio-setOutput-output-callback-err-Set-the-output-to-either-lineOut-or-headPhones-Defaults-to-lineOut" name="api-audio-setOutput-output-callback-err-Set-the-output-to-either-lineOut-or-headPhones-Defaults-to-lineOut">#</a> audio<b>.setOutput</b>( output, callback(err) )  
- Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.  
+ Set the output to either 'lineOut' or 'headphones'. Defaults to 'lineOut'.  
 
 &#x20;<a href="#api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice" name="api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice">#</a> audio<b>.startRecording</b>( [profile] callback(err) )  
 Start recording sound from the input. (Receive data in the 'data' event) Callback called after recording initialized (not stopped ) .quality is an optional argument that can be 'voice', 'wideband-voice', 'wideband-stereo', 'hifi-voice', or 'stereo-music'. Default is 'hifi-voice'.  
@@ -136,9 +136,9 @@ Stop recording sound (note that may receive one more 'data' event before this co
  The buffer finished playing.  
 
 ###Further Examples
-* [Audio Out No Streams](https://github.com/tessel/audio-vs1053b/blob/master/examples/audio-out-no-streams.js). This Audio Module demo sends audio from a file to Headphones/Line out without using streams.. 
+* [Audio Out No Streams](https://github.com/tessel/audio-vs1053b/blob/master/examples/audio-out-no-streams.js). This Audio Module demo sends audio from a file to Headphones/Line out without using streams..
 * [Record Sound](https://github.com/tessel/audio-vs1053b/blob/master/examples/record-sound.js). This Audio Module demo sends audio from the microphone to a file without using streams.
-* [Stream Audio Out](https://github.com/tessel/audio-vs1053b/blob/master/examples/stream-audio-out.js). This Audio Module demo sends audio from a file to Headphones/Line out using streams. 
+* [Stream Audio Out](https://github.com/tessel/audio-vs1053b/blob/master/examples/stream-audio-out.js). This Audio Module demo sends audio from a file to Headphones/Line out using streams.
 * [Stream Sound to File](https://github.com/tessel/audio-vs1053b/blob/master/examples/stream-sound-to-file.js). This Audio Module demo takes line-in and writes it to a file using streams.
 
 ###License

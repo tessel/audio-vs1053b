@@ -20,14 +20,14 @@ async.series([
 
   // Test Volume, single arg
   test("Changing the volume with single volume arg", function(t) {
-    var testValue = 10;
+    var testValue = .9;
     audio.setVolume(testValue, function(err) {
       t.equal(err, undefined, "error changing volume");
 
       // Read the volume register
       audio._readSciRegister16(0x0B, function(err, value) {
-        t.equal(testValue, ((value >> 8)/2), 'left channel volume not set correctly'); 
-        t.equal(testValue, ((value & 0xFF)/2), 'right channel volume not set correctly'); 
+        t.equal(audio._normalizeVolume(testValue), (value >> 8), 'left channel volume not set correctly');
+        t.equal(audio._normalizeVolume(testValue), (value & 0xFF), 'right channel volume not set correctly');
         t.end();
       });
     });
@@ -35,15 +35,15 @@ async.series([
 
   // Test Volume, multiple args
   test("Changing the volume with both volume args", function(t) {
-    var testValueLeft = 10;
-    var testValueRight = 20;
+    var testValueLeft = .9;
+    var testValueRight = .8;
     audio.setVolume(testValueLeft, testValueRight, function(err) {
       t.equal(err, undefined, "error changing volume");
 
       // Read the volume register
       audio._readSciRegister16(0x0B, function(err, value) {
-        t.equal(testValueLeft, ((value >> 8)/2), 'left channel volume not set correctly'); 
-        t.equal(testValueRight, ((value & 0xFF)/2), 'right channel volume not set correctly'); 
+        t.equal(audio._normalizeVolume(testValueLeft), (value >> 8), 'left channel volume not set correctly');
+        t.equal(audio._normalizeVolume(testValueRight), (value & 0xFF), 'right channel volume not set correctly');
         t.end();
       });
     });
@@ -57,7 +57,7 @@ async.series([
         t.equal(err, undefined, 'error checking gpio status on input change');
         t.ok(gpio & (1 << 5), 'correct input set in gpio register');
         t.end();
-      }); 
+      });
     });
   }),
 
@@ -70,7 +70,7 @@ async.series([
         t.equal(err, undefined, 'error checking gpio status on input change');
         t.ok(!(gpio & (1 << 5)), 'correct input set in gpio register');
         t.end();
-      }); 
+      });
     });
   }),
 
@@ -90,7 +90,7 @@ async.series([
         t.equal(err, undefined, 'error checking gpio status on input change');
         t.ok(gpio & (1 << 7), 'correct lineOut input set in gpio register');
         t.end();
-      }); 
+      });
     });
   }),
 
@@ -102,7 +102,7 @@ async.series([
         t.equal(err, undefined, 'error checking gpio status on input change');
         t.ok(!(gpio & (1 << 7)), 'correct headphones input set in gpio register');
         t.end();
-      }); 
+      });
     });
   }),
 
@@ -110,7 +110,7 @@ async.series([
   test("Setting the output to headphones", function(t) {
     audio.setOutput('notathing', function(err) {
       t.ok(err, 'error setting input');
-      t.end(); 
+      t.end();
     });
   }),
 
@@ -139,10 +139,10 @@ async.series([
       // Once we get four data events
       if (i > 4) {
 
-        // Clear the 
+        // Clear the
         clearTimeout(timeout);
         audio.removeAllListeners('data');
-        
+
         finished = true;
 
         t.ok(data, 'data was invalid on recording event');
@@ -220,5 +220,3 @@ async.series([
     console.log('error running tests', err);
   }
 );
-
-

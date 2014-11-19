@@ -407,35 +407,28 @@ Audio.prototype.setDefaultIO = function(callback) {
 
 Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, callback) {
 
-  // If no volume was provided
-  if (leftChannelDecibels === undefined) {
-    // Just callback
-    if (callback) {
-      callback();
+  if(typeof leftChannelDecibels !== 'number'){ // if no volume provided
+    return (!typeof leftChannelDecibels === 'function') || leftChannelDecibels(); // call callback if provided
+  }
+
+  leftChannelDecibels = this._normalizeVolume(leftChannelDecibels);
+
+  if(typeof rightChannelDecibels !== 'number') {
+    if(typeof rightChannelDecibels === 'function') {
+      callback = rightChannelDecibels;
     }
-
-    // and return
-    return;
+    rightChannelDecibels = leftChannelDecibels; // set right channel = left channel
+  } else {
+    rightChannelDecibels = this._normalizeVolume(rightChannelDecibels);
   }
-  // If the user passed in one decibel level and a callback
-  else if (typeof rightChannelDecibels === 'function' && !callback) {
-    // set the callback
-    callback = rightChannelDecibels;
-    // And make both channels the same
-    rightChannelDecibels = leftChannelDecibels;
-  }
-  // If the user only passed in a decibel level
-  else if (rightChannelDecibels === undefined && callback === undefined) { 
-    // Make both channels the same
-    rightChannelDecibels = leftChannelDecibels;
-  }
-
-  // The units are in half decibels
-  leftChannelDecibels = leftChannelDecibels/0.5;
-  rightChannelDecibels = rightChannelDecibels/0.5
-  
   // Set VS10xx Volume Register
   this._writeSciRegister(SCI_VOL, leftChannelDecibels, rightChannelDecibels, callback);
+}
+
+// helper function for setVolume
+Audio.prototype._normalizeVolume = function(vol){
+  vol = (vol > 1) ? 1 : (vol < 0) ? 0 : vol; // make sure val is in the range 0-1.
+  return Math.round((1 - vol) * 0xFE); // 0xFE = min sound level before completely off (0xFF)
 }
 
 Audio.prototype.setInput = function(input, callback) {
@@ -583,7 +576,7 @@ Audio.prototype.queue = function(buff, callback) {
     lock.release();
 
     self.lock = null;
-    
+
     if (err) {
       if (callback) {
         callback(err);
