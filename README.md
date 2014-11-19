@@ -65,7 +65,7 @@ audio.on('error', function(err) {
 ###Methods
 
 &#x20;<a href="#api-audio-setVolume-leftChannelDb-rightChannelDb-callback-err-Set-the-output-volume-Level-is-a-Number-from-0-0-to-1-0" name="api-audio-setVolume-leftChannelDb-rightChannelDb-callback-err-Set-the-output-volume-Level-is-a-Number-from-0-0-to-1-0">#</a> audio<b>.setVolume</b>( leftChannelDb, [rightChannelDb,] callback(err) )  
- Set the output volume. Level is a Number from 0.0 to 1.0  
+ Set the output volume. Level is a Number from 0.0 to 1.0 (-127dB to 0dB)
 
 &#x20;<a href="#api-audio-setInput-input-callback-err-Set-the-input-to-either-lineIn-or-mic-Defaults-to-lineIn" name="api-audio-setInput-input-callback-err-Set-the-input-to-either-lineIn-or-mic-Defaults-to-lineIn">#</a> audio<b>.setInput</b>( input, callback(err) )  
  Set the input to either 'lineIn' or 'mic'. Defaults to 'lineIn'.  
@@ -136,9 +136,9 @@ Stop recording sound (note that may receive one more 'data' event before this co
  The buffer finished playing.  
 
 ###Further Examples
-* [Audio Out No Streams](https://github.com/tessel/audio-vs1053b/blob/master/examples/audio-out-no-streams.js). This Audio Module demo sends audio from a file to Headphones/Line out without using streams.. 
+* [Audio Out No Streams](https://github.com/tessel/audio-vs1053b/blob/master/examples/audio-out-no-streams.js). This Audio Module demo sends audio from a file to Headphones/Line out without using streams..
 * [Record Sound](https://github.com/tessel/audio-vs1053b/blob/master/examples/record-sound.js). This Audio Module demo sends audio from the microphone to a file without using streams.
-* [Stream Audio Out](https://github.com/tessel/audio-vs1053b/blob/master/examples/stream-audio-out.js). This Audio Module demo sends audio from a file to Headphones/Line out using streams. 
+* [Stream Audio Out](https://github.com/tessel/audio-vs1053b/blob/master/examples/stream-audio-out.js). This Audio Module demo sends audio from a file to Headphones/Line out using streams.
 * [Stream Sound to File](https://github.com/tessel/audio-vs1053b/blob/master/examples/stream-sound-to-file.js). This Audio Module demo takes line-in and writes it to a file using streams.
 
 ###License
