@@ -71,7 +71,7 @@ audio.on('error', function(err) {
  Set the input to either 'lineIn' or 'mic'. Defaults to 'lineIn'.  
 
 &#x20;<a href="#api-audio-setOutput-output-callback-err-Set-the-output-to-either-lineOut-or-headPhones-Defaults-to-lineOut" name="api-audio-setOutput-output-callback-err-Set-the-output-to-either-lineOut-or-headPhones-Defaults-to-lineOut">#</a> audio<b>.setOutput</b>( output, callback(err) )  
- Set the output to either 'lineOut' or 'headPhones'. Defaults to 'lineOut'.  
+ Set the output to either 'lineOut' or 'headphones'. Defaults to 'lineOut'.  
 
 &#x20;<a href="#api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice" name="api-audio-startRecording-profile-callback-err-Start-recording-sound-from-the-input-Receive-data-in-the-data-event-Callback-called-after-recording-initialized-not-stopped-quality-is-an-optional-argument-that-can-be-voice-wideband-voice-wideband-stereo-hifi-voice-or-stereo-music-Default-is-hifi-voice">#</a> audio<b>.startRecording</b>( [profile] callback(err) )  
 Start recording sound from the input. (Receive data in the 'data' event) Callback called after recording initialized (not stopped ) .quality is an optional argument that can be 'voice', 'wideband-voice', 'wideband-stereo', 'hifi-voice', or 'stereo-music'. Default is 'hifi-voice'.  

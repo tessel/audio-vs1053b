@@ -12,7 +12,7 @@ var audio = require('../').use(tessel.port['A']); // Replace '../' with 'audio-v
 
 audio.on('ready', function () {
   // Start recording data for a second into a file
-  audio.setOutput('headphone', function(err) {
+  audio.setOutput('headphones', function(err) {
     // Open a file
     fs.createReadStream('sample.mp3').pipe(audio.createPlayStream());
   });
