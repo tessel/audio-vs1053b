@@ -118,31 +118,33 @@ Audio.prototype.initialize = function(callback) {
 Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
 
   var self = this;
-  if (self.lock) {
+
+  // Get the callback if one was saved
+  var track = _audioCallbacks[completedStream];
+
+  // If it exists
+  if (track) {
+    // Remove it from our datastructure
+    delete _audioCallbacks[completedStream];
+
+    // Call the callback
+    if (track.callback) {
+      track.callback();
+    }
+    
+    // Emit the end event
+    self.emit('end', err);
+  }
+
+  // Get the number of streams still playing
+  var remaining = Object.keys(_audioCallbacks).length;
+  // If there are not still tracks playing and we have a lock reference
+  if (!remaining && self.lock) {
+    // Free the lock
     self.lock.release(function(err) {
       if (err) {
         self.emit('error', err);
         return
-      }
-      else {
-        // Get the callback if one was saved
-        var callback = _audioCallbacks[completedStream];
-
-        // If it exists
-        if (callback) {
-          // Remove it from our datastructure
-          delete _audioCallbacks[completedStream];
-
-          var err;
-          // Generate an error message if there was an error
-          if (errBool) {
-            err = new Error("Error sending buffer over SPI");
-          }
-          // Call the callback
-          callback(err);
-
-          self.emit('end', err);
-        }
       }
     });
   }
@@ -494,17 +496,30 @@ Audio.prototype.play = function(buff, callback) {
     return;
   }
 
-  self.spi.lock(function(err, lock) {
-    if (err) {
-      if (callback) {
-        callback(err);
+  // If we don't have a lock
+  if (!self.lock) {
+    // Obtain a lock
+    self.spi.lock(function(err, lock) {
+      if (err) {
+        if (callback) {
+          callback(err);
+        }
+        return;
       }
 
-      return;
-    }
+      // Keep a reference to the lock
+      self.lock = lock;
 
-    // Save the lock reference so we can free it later
-    self.lock = lock;
+      // Play the track
+      _play_helper();
+    });
+  }
+  else {
+    // Play the track
+    _play_helper();
+  }
+
+  function _play_helper() {
     // Send this buffer off to our shim to have it start playing
     var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
 
@@ -513,7 +528,7 @@ Audio.prototype.play = function(buff, callback) {
     self._handleTrack(track);
 
     self.emit('play', track);
-  });
+  }
 }
 
 Audio.prototype._handleTrack = function(track) {
@@ -539,11 +554,8 @@ Audio.prototype._handleTrack = function(track) {
   }
   // No error occured
   else {
-    // If a callback was provided
-    if (track.callback) {
     // Add it to the callbacks dict
-      _audioCallbacks[track.id] = track.callback;
-    }
+    _audioCallbacks[track.id] = track;
 
     this.emit('queued', track.id);
   }
@@ -566,31 +578,45 @@ Audio.prototype.queue = function(buff, callback) {
     return;
   }
 
-  // Initialize SPI to the correct settings
-  self.spi.initialize();
+  // If not lock
+    // initialize SPI
+    // grab a lock
+    // queue the data
+  // if we have a lock
+    // just send the data
 
-  // If there was a lock in place, wait until it's released
-  self.spi.lock(function(err, lock) {
+  // If we don't have a SPI lock
+  if (!self.lock) {
+    // Initialize SPI to the correct settings
+    self.spi._initialize();
+    // If there was a lock in place, wait until it's released, and we have it
+    self.spi.lock(function(err, lock) {
 
-    // Release the lock so that we don't wait until complete for next queue
-    lock.release();
+      if (err) {
+        if (callback) {
+          callback(err);
+        }
 
-    self.lock = null;
-
-    if (err) {
-      if (callback) {
-        callback(err);
+        return;
       }
+      else {
+        self.lock = lock;
 
-      return;
-    }
-    else {
+        // Queue the data
+        _queue_helper();
+      }
+    });
+  }
+  else {
+    // Queue the data
+    _queue_helper();
+  }
 
-      var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
-      var track = new Track(buf_len, streamID, callback);
-      self._handleTrack(track);
-    }
-  });
+  function _queue_helper() {
+    var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+    var track = new Track(buf_len, streamID, callback);
+    self._handleTrack(track);
+  }
 }
 
 Audio.prototype.pause = function(callback) {
