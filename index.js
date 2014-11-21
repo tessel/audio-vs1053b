@@ -13,6 +13,7 @@ var util = require('util');
 var hw = process.binding('hw');
 var Writable = require('stream').Writable;
 var Readable = require('stream').Readable;
+var queue = require('sync-queue');
 
 // VS10xx SCI Registers
 var SCI_MODE = 0x00
@@ -51,31 +52,34 @@ function use (hardware, next) {
 
 
 function Audio(hardware, callback) {
+  var self = this;
   // Set the spi port
-  this.spi = new hardware.SPI({
+  self.spi = new hardware.SPI({
     clockSpeed: 1000000,
     dataMode: 0
   });
 
-  // Set our register select pins
-  this.MP3_XCS = hardware.digital[0].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
-  this.MP3_DCS = hardware.digital[1].output(true); //Data Chip Select / BSYNC Pin
-  this.MP3_DREQ = hardware.digital[2].input() //Data Request Pin: Player asks for more data
+  self.commandQueue = new queue();
 
-  this.input = "";
-  this.output = "";
+  // Set our register select pins
+  self.MP3_XCS = hardware.digital[0].output(true); //Control Chip Select Pin (for accessing SPI Control/Status registers)
+  self.MP3_DCS = hardware.digital[1].output(true); //Data Chip Select / BSYNC Pin
+  self.MP3_DREQ = hardware.digital[2].input() //Data Request Pin: Player asks for more data
+
+  self.input;
+  self.output;
 
   // Waits for the audio completion event which signifies that a buffer has finished streaming
-  process.on('audio_playback_complete', this._handlePlaybackComplete.bind(this));
+  process.on('audio_playback_complete', self._handlePlaybackComplete.bind(self));
 
   // Waits for the audio data event which is recorded data being output from the C shim
-  process.on('audio_recording_data', this._handleRecordedData.bind(this));
+  process.on('audio_recording_data', self._handleRecordedData.bind(self));
 
   // Waits for final flushed buffer of a recording
-  process.on('audio_recording_complete', this._handleRecordedData.bind(this));
+  process.on('audio_recording_complete', self._handleRecordedData.bind(self));
 
   // Initialize the module
-  this.initialize(callback);
+  self.commandQueue.place(self.initialize.bind(self, callback));
 }
 
 util.inherits(Audio, events.EventEmitter);
@@ -107,6 +111,8 @@ Audio.prototype.initialize = function(callback) {
                   });
                 }
               });
+
+              self.commandQueue.next();
             }
           });
         }
@@ -389,42 +395,51 @@ Audio.prototype._enableAudioOutput = function(callback) {
 
 Audio.prototype.setDefaultIO = function(callback) {
   var self = this;
-  self._enableAudioOutput(function(err) {
-    if (err) { self._failConnect(err, callback); }
-    else {
-      self.setInput('mic', function(err) {
-        if (err) { self._failConnect(err, callback); }
-        else {
-          self.setOutput('headphones', function(err) {
-            if (err) { self._failConnect(err, callback); }
-            else {
-              callback && callback();
-            }
-          });
-        }
-      });
-    }
+
+  self.commandQueue.place(function() { 
+    self._enableAudioOutput(function(err) {
+      if (err) { self._failConnect(err, callback); }
+      else {
+        self.setInput('mic', function(err) {
+          if (err) { self._failConnect(err, callback); }
+          else {
+            self.setOutput('headphones', function(err) {
+              if (err) { self._failConnect(err, callback); }
+              else {
+                callback && callback();
+              }
+            });
+          }
+        });
+        self.commandQueue.next();
+      }
+    });
   });
 }
 
 Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, callback) {
+  var self = this;
 
-  if(typeof leftChannelDecibels !== 'number'){ // if no volume provided
-    return (!typeof leftChannelDecibels === 'function') || leftChannelDecibels(); // call callback if provided
-  }
+  self.commandQueue.place(function() {
 
-  leftChannelDecibels = this._normalizeVolume(leftChannelDecibels);
-
-  if(typeof rightChannelDecibels !== 'number') {
-    if(typeof rightChannelDecibels === 'function') {
-      callback = rightChannelDecibels;
+    if(typeof leftChannelDecibels !== 'number'){ // if no volume provided
+      return (!typeof leftChannelDecibels === 'function') || leftChannelDecibels(); // call callback if provided
     }
-    rightChannelDecibels = leftChannelDecibels; // set right channel = left channel
-  } else {
-    rightChannelDecibels = this._normalizeVolume(rightChannelDecibels);
-  }
-  // Set VS10xx Volume Register
-  this._writeSciRegister(SCI_VOL, leftChannelDecibels, rightChannelDecibels, callback);
+
+    leftChannelDecibels = self._normalizeVolume(leftChannelDecibels);
+
+    if(typeof rightChannelDecibels !== 'number') {
+      if(typeof rightChannelDecibels === 'function') {
+        callback = rightChannelDecibels;
+      }
+      rightChannelDecibels = leftChannelDecibels; // set right channel = left channel
+    } else {
+      rightChannelDecibels = self._normalizeVolume(rightChannelDecibels);
+    }
+    // Set VS10xx Volume Register
+    self._writeSciRegister(SCI_VOL, leftChannelDecibels, rightChannelDecibels, callback);
+    setImmediate(self.commandQueue.next.bind(self));
+  });
 }
 
 // helper function for setVolume
@@ -434,37 +449,47 @@ Audio.prototype._normalizeVolume = function(vol){
 }
 
 Audio.prototype.setInput = function(input, callback) {
-  if (input != 'lineIn' && input != 'mic') {
-    return callback && callback(new Error("Invalid input requested..."));
-  }
-  else {
-    this.input = input;
+  var self = this;
 
-    this._getChipGpio(function(err, gpio) {
-      if (err) { return callback && callback(err); }
-      else {
-        var newReg = (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
-        this._setChipGpio(newReg, callback);
-      }
-    }.bind(this));
-  }
+  self.commandQueue.place(function() { 
+    if (input != 'lineIn' && input != 'mic') {
+      return callback && callback(new Error("Invalid input requested..."));
+    }
+    else {
+      self.input = input;
+
+      self._getChipGpio(function(err, gpio) {
+        if (err) { return callback && callback(err); }
+        else {
+          var newReg = (input === "lineIn" ? (gpio | (1 << inputReg)) : (gpio & ~(1 << inputReg)));
+          self._setChipGpio(newReg, callback);
+          setImmediate(self.commandQueue.next.bind(self));
+        }
+      });
+    }
+  });
 }
 
 Audio.prototype.setOutput = function(output, callback) {
-  if (output != 'lineOut' && output != 'headphones') {
-    return callback && callback(new Error("Invalid output requested..."));
-  }
-  else {
-    this.output = output;
-    this._getChipGpio(function(err, gpio) {
-      if (err) { return callback && callback(err); }
-      else {
-        // Check if it's input or output and set the 7th bit of the gpio reg accordingly
-        var newReg = (output === 'lineOut' ? (gpio | (1 << outputReg)) : (gpio & ~(1 << outputReg)));
-        this._setChipGpio(newReg, callback);
-      }
-    }.bind(this));
-  }
+  var self = this;
+
+  self.commandQueue.place(function() { 
+    if (output != 'lineOut' && output != 'headphones') {
+      return callback && callback(new Error("Invalid output requested..."));
+    }
+    else {
+      self.output = output;
+      self._getChipGpio(function(err, gpio) {
+        if (err) { return callback && callback(err); }
+        else {
+          // Check if it's input or output and set the 7th bit of the gpio reg accordingly
+          var newReg = (output === 'lineOut' ? (gpio | (1 << outputReg)) : (gpio & ~(1 << outputReg)));
+          self._setChipGpio(newReg, callback);
+          setImmediate(self.commandQueue.next.bind(self));
+        }
+      });
+    }
+  });
 }
 
 function Track(length, id, callback) {
@@ -496,39 +521,45 @@ Audio.prototype.play = function(buff, callback) {
     return;
   }
 
-  // If we don't have a lock
-  if (!self.lock) {
-    // Obtain a lock
-    self.spi.lock(function(err, lock) {
-      if (err) {
-        if (callback) {
-          callback(err);
+  self.commandQueue.place(function() { 
+
+    // If we don't have a lock
+    if (!self.lock) {
+      // Obtain a lock
+      self.spi.lock(function(err, lock) {
+        if (err) {
+          if (callback) {
+            callback(err);
+          }
+          self.commandQueue.next();
+          return;
         }
-        return;
-      }
 
-      // Keep a reference to the lock
-      self.lock = lock;
+        // Keep a reference to the lock
+        self.lock = lock;
 
+        // Play the track
+        _play_helper();
+      });
+    }
+    else {
       // Play the track
       _play_helper();
-    });
-  }
-  else {
-    // Play the track
-    _play_helper();
-  }
+    }
 
-  function _play_helper() {
-    // Send this buffer off to our shim to have it start playing
-    var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+    function _play_helper() {
+      // Send this buffer off to our shim to have it start playing
+      var streamID = hw.audio_play_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
 
-    var track = new Track(buff.length, streamID, callback);
+      var track = new Track(buff.length, streamID, callback);
 
-    self._handleTrack(track);
+      self._handleTrack(track);
 
-    self.emit('play', track);
-  }
+      self.emit('play', track);
+
+      self.commandQueue.next();
+    }
+  });
 }
 
 Audio.prototype._handleTrack = function(track) {
@@ -578,45 +609,41 @@ Audio.prototype.queue = function(buff, callback) {
     return;
   }
 
-  // If not lock
-    // initialize SPI
-    // grab a lock
-    // queue the data
-  // if we have a lock
-    // just send the data
+  self.commandQueue.place(function() { 
+    // If we don't have a SPI lock
+    if (!self.lock) {
+      // Initialize SPI to the correct settings
+      self.spi._initialize();
+      // If there was a lock in place, wait until it's released, and we have it
+      self.spi.lock(function(err, lock) {
 
-  // If we don't have a SPI lock
-  if (!self.lock) {
-    // Initialize SPI to the correct settings
-    self.spi._initialize();
-    // If there was a lock in place, wait until it's released, and we have it
-    self.spi.lock(function(err, lock) {
-
-      if (err) {
-        if (callback) {
-          callback(err);
+        if (err) {
+          if (callback) {
+            callback(err);
+          }
+          self.commandQueue.next();
+          return;
         }
+        else {
+          self.lock = lock;
 
-        return;
-      }
-      else {
-        self.lock = lock;
+          // Queue the data
+          _queue_helper();
+        }
+      });
+    }
+    else {
+      // Queue the data
+      _queue_helper();
+    }
 
-        // Queue the data
-        _queue_helper();
-      }
-    });
-  }
-  else {
-    // Queue the data
-    _queue_helper();
-  }
-
-  function _queue_helper() {
-    var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
-    var track = new Track(buf_len, streamID, callback);
-    self._handleTrack(track);
-  }
+    function _queue_helper() {
+      var streamID = hw.audio_queue_buffer(self.MP3_XCS.pin, self.MP3_DCS.pin, self.MP3_DREQ.pin, buff, buff.length);
+      var track = new Track(buf_len, streamID, callback);
+      self._handleTrack(track);
+      self.commandQueue.next();
+    }
+  });
 }
 
 Audio.prototype.pause = function(callback) {
@@ -630,23 +657,27 @@ Audio.prototype.pause = function(callback) {
    return;
   }
 
-  // If we have a lock on the spi bus
-  if (this.lock) {
-    // Release it
-    this.lock.release(function(err) {
-      // Call the callback if we have one
+  self.commandQueue.place(function() { 
+    // If we have a lock on the spi bus
+    if (this.lock) {
+      // Release it
+      this.lock.release(function(err) {
+        // Call the callback if we have one
+        if (callback) {
+          callback(err);
+        }
+        self.commandQueue.next();
+        return;
+      });
+    }
+    // If there is no lock, just call the callback
+    else {
       if (callback) {
         callback(err);
       }
-      return;
-    });
-  }
-  // If there is no lock, just call the callback
-  else {
-    if (callback) {
-      callback(err);
+      self.commandQueue.next();
     }
-  }
+  });
 }
 
 Audio.prototype.stop = function(callback) {
@@ -658,22 +689,26 @@ Audio.prototype.stop = function(callback) {
   }
 
   // If we have a lock on the spi bus
-  if (this.lock) {
-    // Release it
-    this.lock.release(function(err) {
-      // Call the callback if we have one
+  self.commandQueue.place(function() { 
+    if (this.lock) {
+      // Release it
+      this.lock.release(function(err) {
+        // Call the callback if we have one
+        if (callback) {
+          callback(err);
+        }
+        self.commandQueue.next();
+        return;
+      });
+    }
+    // If there is no lock, just call the callback
+    else {
       if (callback) {
         callback(err);
       }
-      return;
-    });
-  }
-  // If there is no lock, just call the callback
-  else {
-    if (callback) {
-      callback(err);
+      self.commandQueue.next();
     }
-  }
+  });
 }
 
 Audio.prototype.availableRecordingProfiles = function() {
@@ -707,73 +742,81 @@ Audio.prototype.startRecording = function(profile, callback) {
     return;
   }
 
-  // Initialize SPI to the correct settings
-  self.spi.initialize();
+  self.commandQueue.place(function() { 
 
-  var pluginDir = __dirname + "/plugins/" + profile + ".img";
+    // Initialize SPI to the correct settings
+    self.spi.initialize();
 
-  var ret = hw.audio_start_recording(this.MP3_XCS.pin, this.MP3_DREQ.pin, pluginDir, _fillBuff);
+    var pluginDir = __dirname + "/plugins/" + profile + ".img";
 
-  if (ret < 0) {
-    var err;
+    var ret = hw.audio_start_recording(self.MP3_XCS.pin, self.MP3_DREQ.pin, pluginDir, _fillBuff);
 
-    if (ret == -1) {
-      err = new Error("Not able to allocate recording memory...");
-    }
-    else if (ret == -2) {
-      err = new Error("Invalid plugin file.");
-    }
-    else if (ret == -3) {
-      err = new Error("Module must be in an idle state to start recording.");
-    }
-    if (callback) {
-      callback(err);
-    }
+    if (ret < 0) {
+      var err;
 
-    return;
-  }
+      if (ret == -1) {
+        err = new Error("Not able to allocate recording memory...");
+      }
+      else if (ret == -2) {
+        err = new Error("Invalid plugin file.");
+      }
+      else if (ret == -3) {
+        err = new Error("Module must be in an idle state to start recording.");
+      }
+      if (callback) {
+        callback(err);
+      }
 
-  else {
-    if (callback) {
-      callback();
+      return;
     }
 
-    this.emit('startRecording');
-  }
+    else {
+      if (callback) {
+        callback();
+      }
 
+      self.emit('startRecording');
+    }
+
+    self.commandQueue.next();
+  });
 }
 
 
 Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
-  var ret = hw.audio_stop_recording();
+  self.commandQueue.place(function() { 
 
-  if (ret < 0) {
-    var err = new Error("Not in valid state to stop recording.");
+    var ret = hw.audio_stop_recording();
 
-    if (callback) {
-      callback(err);
-    }
-  }
-  else {
+    if (ret < 0) {
+      var err = new Error("Not in valid state to stop recording.");
 
-    function recStopped(length) {
-
-      process.unref();
-
-      // If a callback was provided, return it
       if (callback) {
-        callback();
+        callback(err);
       }
-      // Stop recording
-      self.emit('stopRecording');
     }
+    else {
 
-    process.once('audio_recording_complete', recStopped);
+      function recStopped(length) {
 
-    process.ref();
-  }
+        process.unref();
+
+        // If a callback was provided, return it
+        if (callback) {
+          callback();
+        }
+        // Stop recording
+        self.emit('stopRecording');
+      }
+
+      process.once('audio_recording_complete', recStopped);
+
+      process.ref();
+    }
+    self.commandQueue.next();
+  });
 }
 
 exports.use = use;
