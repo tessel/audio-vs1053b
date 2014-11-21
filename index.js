@@ -33,23 +33,47 @@ var SCI_MODE = 0x00
   , SCI_AICTRL2 = 0x0E
   , SCI_AICTRL3 = 0x0F;
 
+// VS10xx Reset Command
 var MODE_SM_RESET = 0x04;
 
+// VS10xx GPIO Register adddresses
 var GPIO_DIR_ADDR = 0xC017
   , GPIO_READ_ADDR = 0xC018
   , GPIO_SET_ADDR = 0xC019;
 
+// VS10xx GPIO for i/o
 var inputReg = 0x05,
     outputReg = 0x07;
 
+// Datastructure for storing pending buffers and their allbacks
 var _audioCallbacks = {};
+// A double buffer for recording data
 var _fillBuff = new Buffer(25000);
 _fillBuff.fill(0);
 
-function use (hardware, next) {
-  return new Audio(hardware, next);
-}
+// The SPI bus clock speed
+var SPIClockSpeed = 4000000;
 
+/*
+ * Both use() and Audio() initialize the audio module with a specific piece of hardware.  
+ * use() is a common API wrapper around object construction for Tessel modules. Arguments:
+ *
+ *    hardware       The hardware the module is connected to (Tessel Port)
+ *
+ *    callback       A callback to be called when initialization completes. Upon
+ *                   success, callback is invoked as callback(null, audio),
+ *                   where `audio` is an Audio module object.  Upon failure,
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for several reasons:
+ *
+ *    Error          Created when Tessel cannot communicate with the module or
+ *                   it receives a response that doesn't match with what was expected.
+ *
+ */
+function use (hardware, callback) {
+  return new Audio(hardware, callback);
+}
 
 function Audio(hardware, callback) {
   var self = this;
@@ -59,6 +83,7 @@ function Audio(hardware, callback) {
     dataMode: 0
   });
 
+  // Create a new queue to store commands
   self.commandQueue = new queue();
 
   // Set our register select pins
@@ -66,6 +91,7 @@ function Audio(hardware, callback) {
   self.MP3_DCS = hardware.digital[1].output(true); //Data Chip Select / BSYNC Pin
   self.MP3_DREQ = hardware.digital[2].input() //Data Request Pin: Player asks for more data
 
+  // Initializing state variables
   self.input;
   self.output;
 
@@ -84,6 +110,20 @@ function Audio(hardware, callback) {
 
 util.inherits(Audio, events.EventEmitter);
 
+/*
+ * Reset the Audio module and set it into a known, default state
+ *
+ *    callback       A callback to be called when initialization completes. Upon
+ *                   success, callback is invoked as callback(null, audio),
+ *                   where `audio` is an Audio module object.  Upon failure,
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for several reasons:
+ *
+ *    Error          Created when Tessel cannot communicate with the module or
+ *                   it receives a response that doesn't match with what was expected.
+ *
+ */
 Audio.prototype.initialize = function(callback) {
   var self = this;
 
@@ -117,6 +157,17 @@ Audio.prototype.initialize = function(callback) {
   });
 }
 
+/*
+ * (Internal Function) The callback for the event when a stream finishes playing.
+ * This method is responsible for calling any callbacks associated with a given stream's
+ * completion and releasing the SPI lock if there are no more active streams.
+ *
+ *    errBool           An indicator of whether there was an error with playback.
+ *
+ *    completedStream   The track id of the buffer that just completed. This is the key
+ *                      stored in the callbacks datastructure for fetching the track information.
+ *
+ */
 Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
 
   var self = this;
@@ -152,6 +203,14 @@ Audio.prototype._handlePlaybackComplete = function(errBool, completedStream) {
   }
 }
 
+
+/*
+ * (Internal Function) The callback for when a buffer of recorded data is returned from the C shim.
+ * This function is called repeatedly as a recording is made.
+ *
+ *    length       The number of bytes that that were recorded. 
+ *
+ */
 Audio.prototype._handleRecordedData = function(length) {
   // Copy the recorded data into a new buff for consumption
   var cp = new Buffer(length);
@@ -159,6 +218,17 @@ Audio.prototype._handleRecordedData = function(length) {
   this.emit('data', cp);
 }
 
+
+/*
+ * (Internal Function) A helper function to simplify error handling. It checks if an error occured, 
+ * calls a callback if one was provided, or emits an error event. 
+ *
+ *    hardware       The hardware the module is connected to (Tessel Port)
+ *
+ *    callback       A callback to be called when initialization completes.
+ *
+ * This function returns a boolean that indicates whether an error was handled (value of true).
+ */
 Audio.prototype._failConnect = function(err, callback) {
 
   if (err) {
@@ -179,6 +249,11 @@ Audio.prototype._failConnect = function(err, callback) {
   
 }
 
+/*
+ * Opens up a writable stream which gets piped to the C shim for playback. Internally,
+ * it calls the queue method repeatedly. It continues concatenating piped data until
+ * the buffer is equal or greater than 10k bytes to ensure smooth playback.
+ */
 Audio.prototype.createPlayStream = function() {
   var audio = this;
   var playStream = new Writable;
@@ -230,7 +305,14 @@ Audio.prototype.createPlayStream = function() {
   return playStream;
 }
 
-// Creates a Readable record stream
+
+/*
+ * Opens up a readable stream where recording data will be emitted on an interval. Arguments:
+ *
+ *    profile        A string that indicates with recording profile will be used. 
+ *                   The recording profile determines the sound quality. Available sound
+ *                   qualities can be found by calling availableRecordingProfiles()
+ */
 Audio.prototype.createRecordStream = function(profile) {
   var audio = this;
 
@@ -255,7 +337,17 @@ Audio.prototype.createRecordStream = function(profile) {
   return recordStream;
 }
 
-
+/*
+ * (Internal Function) Performs a soft reset of the Audio module. Arguments:
+ *
+ *    callback       A callback to be called when resetting completes. Upon
+ *                   success, callback is invoked as callback(null). Upon failure,
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._softReset = function(callback) {
   this._readSciRegister16(SCI_MODE, function(err, mode) {
     if (err) { return callback && callback(err); }
@@ -271,6 +363,20 @@ Audio.prototype._softReset = function(callback) {
   }.bind(this))
 }
 
+
+/*
+ * (Internal Function) Requests the chip version from the Audio Module to 
+ * confirm working communication and valid module. Arguments:
+ *
+ *    callback       A callback to be called when checking completes. Upon
+ *                   success, callback is invoked as callback(null). Upon failure,
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. It 
+ *                   can also fail if the returned version is not what was expected.  
+ */
 Audio.prototype._checkVersion = function(callback) {
   this._readSciRegister16(SCI_STATUS, function(err, MP3Status) {
     if (err) { return callback && callback(err); }
@@ -285,31 +391,83 @@ Audio.prototype._checkVersion = function(callback) {
   }.bind(this));
 }
 
+/*
+ * (Internal Function) Sets the VS1053B clock speed. Arguments:
+ *
+ *    callback       A callback to be called when setting completes. Upon
+ *                   success, callback is invoked as callback(null). Upon failure,
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._setClockSpeeds = function(callback) {
   // Set multiplier to 3.0x
   this._writeSciRegister16(SCI_CLOCKF, 0x6000, function(err) {
     if (err) { return callback && callback(err); }
     else {
-      this.spi.setClockSpeed(4000000);
+      this.spi.setClockSpeed(SPIClockSpeed);
       return callback && callback();
     }
   }.bind(this));
 
 }
 
+/*
+ * (Internal Function) Transfer a single byte over SPI to the VS1053b. Arguments:
+ *
+ *    byte           The byte value to be transferred.
+ *
+ *    callback       A callback to be called when sending completes. Upon
+ *                   success, callback is invoked as callback(null). Upon failure,
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._SPItransferByte = function(byte, callback) {
   this._SPItransferArray([byte], function(err, ret) {
     callback && callback(err, ret[0]);
   });
 }
 
+/*
+ * (Internal Function) Transfer an array of bytes over SPI to the vs1053b
+ * Arguments:
+ *
+ *    array          An array of bytes to be sent over spi
+ *
+ *    callback       A callback to be called when setting completes. Upon
+ *                   success, callback is invoked as callback(null). Upon failure,
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._SPItransferArray = function(array, callback) {
   this.spi.transfer(new Buffer(array), function(err, ret) {
     return callback && callback(err, ret);
   });
 }
 
-//Read the 16-bit value of a VS10xx register
+/*
+ * (Internal Function) Read the 16-bit value of a VS10xx register
+ * Arguments:
+ *
+ *    addressbyte    The address of the register to read
+ *
+ *    callback       A callback to be called when setting completes. Upon
+ *                   success, callback is invoked as callback(data) where data
+ *                   is a 16-bit word. Upon failure, callback is invoked as 
+ *                   callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
 
   // TODO: Use a GPIO interrupt
@@ -337,6 +495,24 @@ Audio.prototype._readSciRegister16 = function(addressbyte, callback) {
   }.bind(this));
 }
 
+/*
+ * (Internal Function) Write two 8-bit values value to a VS10xx register
+ * Arguments:
+ *
+ *    addressbyte    The address of the register to write to
+ *
+ *    highbyte       The high 8-bit value to write
+ *
+ *    lowbyte        The low 8-bit value to write
+ *
+ *    callback       A callback to be called when setting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._writeSciRegister = function(addressbyte, highbyte, lowbyte, callback) {
 
   while(!this.MP3_DREQ.read()) ; //Wait for DREQ to go high indicating IC is available
@@ -356,10 +532,41 @@ Audio.prototype._writeSciRegister = function(addressbyte, highbyte, lowbyte, cal
   }.bind(this))
 }
 
+/*
+ * (Internal Function) Write a 16-bit value to a VS10xx register
+ * Arguments:
+ *
+ *    addressbyte    The address of the register to write to
+ *
+ *    word           The 16-bit word to write to the register
+ *
+ *    callback       A callback to be called when setting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._writeSciRegister16 = function(addressbyte, word, callback) {
   this._writeSciRegister(addressbyte, (word >> 8) & 0xFF, word & 0xFF, callback);
 }
 
+/*
+ * (Internal Function) Sets the direction of the VS1053b GPIOs. Arguments:
+ *
+ *    arg            The value of the direction register that will be written.
+ *                   GPIOs to be used as outputs should have a 1 in the x bit
+ *                   position where x is the GPIO number.
+ *
+ *    callback       A callback to be called when setting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._setChipGpioDir = function(arg, callback) {
   this._writeSciRegister16(SCI_WRAMADDR, GPIO_DIR_ADDR, function(err) {
     if (err) { return callback && callback(err); }
@@ -369,20 +576,76 @@ Audio.prototype._setChipGpioDir = function(arg, callback) {
   }.bind(this));
 }
 
+/*
+ * (Internal Function) Sets the state of the VS1053b GPIO pins. Arguments:
+ *
+ *    arg            The value of the state register that will be written.
+ *                   GPIOs to be set high should have a 1 in the x bit
+ *                   position where x is the GPIO number.
+ *
+ *    callback       A callback to be called when setting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._setChipGpio = function(arg, callback) {
   this._writeSciRegister16(SCI_WRAMADDR, GPIO_SET_ADDR, function(err) {
     this._writeSciRegister16(SCI_WRAM, arg, callback);
   }.bind(this));
 }
 
+/*
+ * (Internal Function) Get the direction of each of the VS1053b GPIO pins. Arguments:
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(state) where
+ *                   state is a 16-bit word. The state can be interpreted
+ *                   as GPIO outputs having a 1 in their bit position. Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._getChipGpioDir = function(callback) {
   this._getChipGPIOValue(GPIO_DIR_ADDR, callback);
 }
 
+/*
+ * (Internal Function) Get the state of each of the VS1053b GPIO pins. Arguments:
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(state) where
+ *                   state is a 16-bit word. The state can be interpreted
+ *                   as high GPIOs having a 1 in their bit position. Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._getChipGpio = function(callback) {
   this._getChipGPIOValueFromAddr(GPIO_READ_ADDR, callback);
 }
 
+/*
+ * (Internal Function) A helper function that fetches the value of a GPIO address. Arguments:
+ *
+ *    gpioValue      The Address of the GPIO bank to read
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(state) where
+ *                   state is a 16-bit word. The state can be interpreted
+ *                   as high GPIOs having a 1 in their bit position. Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._getChipGPIOValueFromAddr = function(gpioValue, callback) {
   this._writeSciRegister16(SCI_WRAMADDR, gpioValue, function(err) {
     if (err) { return callback && callback(err); }
@@ -397,10 +660,36 @@ Audio.prototype._getChipGPIOValueFromAddr = function(gpioValue, callback) {
   }.bind(this));
 }
 
+/*
+ * (Internal Function) In order to switch between different Audio inputs and outputs
+ * GPIOs on board the VS1053b are used. GPIO 5 toggles between different inputs
+ * and GPIO 7 toggles between different outputs. This function sets them both as
+ * outputs which is required for setting them high or low (thus, toggling state).
+ * Arguments:
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype._enableAudioOutput = function(callback) {
   this._setChipGpioDir((1 << 7) + (1 << 5), callback);
 }
 
+/*
+ * Sets the default input/output arrangements for the module. Arguments:
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
 Audio.prototype.setDefaultIO = function(callback) {
   var self = this;
 
@@ -422,37 +711,76 @@ Audio.prototype.setDefaultIO = function(callback) {
   });
 }
 
-Audio.prototype.setVolume = function(leftChannelDecibels, rightChannelDecibels, callback) {
+
+/*
+ * Sets the output volume for the Module. Arguments:
+ *
+ *    leftchannel    A float that indicates the level of sound from the left audio.
+ *                   channel. Can between 0 and 1, where 1 is the louded possible value.
+ *
+ *    rightchannel   [Optional] A float that indicates the level of sound from the left audio.
+ *                   channel. Can between 0 and 1, where 1 is the louded possible value.
+ *                   If this argument is omitted, the leftchannel value will be used.
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ */
+Audio.prototype.setVolume = function(leftChannel, rightChannel, callback) {
   var self = this;
 
   self.commandQueue.place(function() {
 
-    if(typeof leftChannelDecibels !== 'number'){ // if no volume provided
-      return (!typeof leftChannelDecibels === 'function') || leftChannelDecibels(); // call callback if provided
+    if(typeof leftChannel !== 'number'){ // if no volume provided
+      return (!typeof leftChannel === 'function') || leftChannel(); // call callback if provided
     }
 
-    leftChannelDecibels = self._normalizeVolume(leftChannelDecibels);
+    leftChannel = self._normalizeVolume(leftChannel);
 
-    if(typeof rightChannelDecibels !== 'number') {
-      if(typeof rightChannelDecibels === 'function') {
-        callback = rightChannelDecibels;
+    if(typeof rightChannel !== 'number') {
+      if(typeof rightChannel === 'function') {
+        callback = rightChannel;
       }
-      rightChannelDecibels = leftChannelDecibels; // set right channel = left channel
+      rightChannel = leftChannel; // set right channel = left channel
     } else {
-      rightChannelDecibels = self._normalizeVolume(rightChannelDecibels);
+      rightChannel = self._normalizeVolume(rightChannel);
     }
     // Set VS10xx Volume Register
-    self._writeSciRegister(SCI_VOL, leftChannelDecibels, rightChannelDecibels, callback);
+    self._writeSciRegister(SCI_VOL, leftChannel, rightChannel, callback);
     setImmediate(self.commandQueue.next.bind(self));
   });
 }
 
-// helper function for setVolume
+/*
+ * (Internal Function) Converts user input from setVolume into a decibel level
+ * that the VS1053b expects. Arguments:
+ *
+ *    vol    A float from 0-1 that indicates the level of sound.
+ *
+ */
 Audio.prototype._normalizeVolume = function(vol){
   vol = (vol > 1) ? 1 : (vol < 0) ? 0 : vol; // make sure val is in the range 0-1.
   return Math.round((1 - vol) * 0xFE); // 0xFE = min sound level before completely off (0xFF)
 }
 
+/*
+ * Toggles between line in and the oboard microphone as a recording input. Arguments:
+ *
+ *    input          A string that is either `mic` or `lineIn`.
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ *                   It may also be created if the provided input is invalid.
+ */
 Audio.prototype.setInput = function(input, callback) {
   var self = this;
 
@@ -477,6 +805,20 @@ Audio.prototype.setInput = function(input, callback) {
   });
 }
 
+/*
+ * Toggles between line out and headphones as the output signal. Arguments:
+ *
+ *    output         A string that is either `headphones` or `lineOut`.
+ *
+ *    callback       A callback to be called when getting completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for one primary reasons:
+ *
+ *    Error          Created when the SPI bus is unable or fails to transceive data. 
+ *                   It may also be created if the provided input is invalid.
+ */
 Audio.prototype.setOutput = function(output, callback) {
   var self = this;
 
@@ -501,6 +843,15 @@ Audio.prototype.setOutput = function(output, callback) {
   });
 }
 
+/*
+ * A helper class to keep track of the state of a provided buffer
+ *
+ *    _buflen        The length of a buffer
+ *
+ *    id             The generated ID that is used to distinguish the track from others
+ *
+ *    callback       A callback to be called when track playback completes
+ */
 function Track(length, id, callback) {
   this._buflen = length;
   this.id = id;
@@ -509,6 +860,24 @@ function Track(length, id, callback) {
 
 util.inherits(Track, events.EventEmitter);
 
+/*
+ * Stops any currently playing tracks and places a new track at the beginning of the queue.
+ * Playback will start immediately. Arguments:
+ *
+ *    buff           A sound Buffer in a format that is supported by the VS1053b
+ *
+ *    callback       A callback to be called when playback completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for a number of reasons:
+ *
+ *    Error          Could be returned if the Audio module can't obtain a lock
+ *                   on the SPI bus. It could be returned if the module is currently
+ *                   recording. It could be returned if all GPIO interrupts are
+ *                   being used elsewhere. It could be returned if there is no more
+ *                   available RAM memory for streaming.
+ */
 Audio.prototype.play = function(buff, callback) {
   // Check if no buffer was passed in but a callback was
   // (the user would like to resume playback)
@@ -571,6 +940,13 @@ Audio.prototype.play = function(buff, callback) {
   });
 }
 
+/*
+ * (Internal Function) Checks the callback of the queue or play command for error and 
+ * places the created track onto the callbacks datastructure so their callback can
+ * be called upon completion. Arguments:
+ *
+ *    track          A Track Object created with a sound buffer
+ */
 Audio.prototype._handleTrack = function(track) {
   // If stream id is less than zero, an error occured
   if (track.id < 0) {
@@ -601,6 +977,24 @@ Audio.prototype._handleTrack = function(track) {
   }
 }
 
+/*
+ * Places a sound buffer at the end of the queue. Any currently playing tracks will continue. 
+ * Arguments:
+ *
+ *    buff           A sound Buffer in a format that is supported by the VS1053b
+ *
+ *    callback       A callback to be called when queueing completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for a number of reasons:
+ *
+ *    Error          Could be returned if the Audio module can't obtain a lock
+ *                   on the SPI bus. It could be returned if the module is currently
+ *                   recording. It could be returned if all GPIO interrupts are
+ *                   being used elsewhere. It could be returned if there is no more
+ *                   available RAM memory for streaming.
+ */
 Audio.prototype.queue = function(buff, callback) {
   var self = this;
 
@@ -655,6 +1049,20 @@ Audio.prototype.queue = function(buff, callback) {
   });
 }
 
+/*
+ * Pauses playback of the first sound buffer in the queue. Can be continued with resume().
+ * Arguments
+ *
+ *    callback       A callback to be called when pausing completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for a number of reasons:
+ *
+ *    Error          Could be returned if the Audio module can't obtain a lock
+ *                   on the SPI bus. It could be returned if the module is currently
+ *                   recording.
+ */
 Audio.prototype.pause = function(callback) {
   var err;
   var ret = hw.audio_pause_buffer();
@@ -689,6 +1097,19 @@ Audio.prototype.pause = function(callback) {
   });
 }
 
+/*
+ * Stops the playback of an audio buffer and clears the queue. 
+ *
+ *    callback       A callback to be called when stopping completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for a number of reasons:
+ *
+ *    Error          Could be returned if the Audio module can't obtain a lock
+ *                   on the SPI bus. It could be returned if the module is currently
+ *                   recording.
+ */
 Audio.prototype.stop = function(callback) {
   var err;
   var ret = hw.audio_stop_buffer();
@@ -720,6 +1141,11 @@ Audio.prototype.stop = function(callback) {
   });
 }
 
+/*
+ * Returns an array of the available recording profiles that can be provided to
+ * startRecording().  
+ * 
+ */
 Audio.prototype.availableRecordingProfiles = function() {
   return [
           'voice',
@@ -730,8 +1156,24 @@ Audio.prototype.availableRecordingProfiles = function() {
           ];
 }
 
-
-
+/*
+ * Start recording sound through the input. Data can be collected with the `data
+ * event.
+ *
+ *    profile        The recording profile to use (sets the sound quality). By
+ *                   default, the best voice recording profile is used.
+ *
+ *    callback       A callback to be called when recording starts. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for a number of reasons:
+ *
+ *    Error          Could be returned if memory for the incoming sound data
+ *                   couldn't be allocated. An error could be returned if an invalid
+ *                   recording profile name is passed in. Or an error could be returned
+ *                   if the module is in playback mode.
+ */
 Audio.prototype.startRecording = function(profile, callback) {
   var self = this;
 
@@ -791,7 +1233,18 @@ Audio.prototype.startRecording = function(profile, callback) {
   });
 }
 
-
+/*
+ * Stop recording sound through the input.
+ *
+ *    callback       A callback to be called when recording completes. Upon
+ *                   success, callback is invoked as callback(). Upon failure,  
+ *                   callback is invoked as callback(err) instead.
+ *
+ * This function may fail for a number of reasons:
+ *
+ *    Error          Could be returned if the module is not in a valid state
+ *                   to stop recording (like if it's currently playing audio).
+ */
 Audio.prototype.stopRecording = function(callback) {
   var self = this;
 
