@@ -89,20 +89,16 @@ Audio.prototype.initialize = function(callback) {
 
   // Reset the mp3 decoder
   this._softReset(function(err) {
-    if (err) { self._failConnect(err, callback); }
-    else {
+    if (!self._failConnect(err, callback)) {
       // Make sure we can comm and have the right version
       self._checkVersion(function(err) {
-        if (err) { self._failConnect(err, callback); }
-        else {
+        if (!self._failConnect(err, callback)) {
           // Set the clock speed higher
           self._setClockSpeeds(function(err) {
-            if (err) { self._failConnect(err, callback); }
-            else {
+            if (!self._failConnect(err, callback)) {
               // Enabke headphones and lineIn
               self.setDefaultIO(function(err) {
-                if (err) { self._failConnect(err, callback); }
-                else {
+                if (!self._failConnect(err, callback)) {
                   // Call the callback
                   callback && callback(null, self);
                   // Ready the event
@@ -164,11 +160,23 @@ Audio.prototype._handleRecordedData = function(length) {
 }
 
 Audio.prototype._failConnect = function(err, callback) {
-  setImmediate(function() {
-    this.emit('error', err);
-  }.bind(this))
 
-  return callback && callback(err);
+  if (err) {
+    if (callback) {
+      callback(err);
+    }
+    else {
+      setImmediate(function() {
+        this.emit('error', err);
+      }.bind(this))
+    }
+
+    return true
+  }
+  else {
+    return false;
+  }
+  
 }
 
 Audio.prototype.createPlayStream = function() {
@@ -398,14 +406,11 @@ Audio.prototype.setDefaultIO = function(callback) {
 
   self.commandQueue.place(function() { 
     self._enableAudioOutput(function(err) {
-      if (err) { self._failConnect(err, callback); }
-      else {
+      if (!self._failConnect(err, callback)) {
         self.setInput('mic', function(err) {
-          if (err) { self._failConnect(err, callback); }
-          else {
+          if (!self._failConnect(err, callback)) {
             self.setOutput('headphones', function(err) {
-              if (err) { self._failConnect(err, callback); }
-              else {
+              if (!self._failConnect(err, callback)) {
                 callback && callback();
               }
             });
@@ -453,7 +458,9 @@ Audio.prototype.setInput = function(input, callback) {
 
   self.commandQueue.place(function() { 
     if (input != 'lineIn' && input != 'mic') {
-      return callback && callback(new Error("Invalid input requested..."));
+      callback && callback(new Error("Invalid input requested..."));
+      setImmediate(self.commandQueue.next.bind(self));
+      return
     }
     else {
       self.input = input;
@@ -475,7 +482,9 @@ Audio.prototype.setOutput = function(output, callback) {
 
   self.commandQueue.place(function() { 
     if (output != 'lineOut' && output != 'headphones') {
-      return callback && callback(new Error("Invalid output requested..."));
+      callback && callback(new Error("Invalid output requested..."));
+      setImmediate(self.commandQueue.next.bind(self));
+      return;
     }
     else {
       self.output = output;
