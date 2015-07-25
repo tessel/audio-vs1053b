@@ -1,6 +1,11 @@
 #Audio
 Driver for the audio-vs1053b Tessel audio module. The hardware documentation for this module can be found [here](https://github.com/tessel/hardware/blob/master/modules-overview.md#audio).
 
+* Decodes MP3/AAC/WMA/MIDI/FLAC/Ogg Vorbis files
+* Supports files and streams
+* Supports both headphones and line-out
+* Can record audio through an on-board microphone or line-in jack
+
 If you run into any issues you can ask for support on the [Audio Module Forums](http://forums.tessel.io/category/audio).
 
 ###Installation
