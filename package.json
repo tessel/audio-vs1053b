@@ -16,11 +16,11 @@
     "./test": "false"
   },
   "dependencies": {
-    "sync-queue": "0.0.1"
+    "sync-queue": "0.0.2"
   },
   "devDependencies": {
-    "async": "^0.9.0",
-    "tinytap": "^0.2.0"
+    "async": "^2.5.0",
+    "tinytap": "^1.2.2"
   },
   "directories": {
     "example": "examples"
